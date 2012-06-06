@@ -1,0 +1,28 @@
+# ==========================
+# Premo
+# (c) 2012 Derek Barnett
+#
+# src/app
+# ==========================
+
+# set include path
+include_directories( ${Premo_SOURCE_DIR}/include )
+
+# compile main premo application
+add_executable( PremoApp
+                main.cpp
+              )
+
+# set Premo application properties
+set_target_properties( PremoApp PROPERTIES
+                       VERSION  0.0.1
+                       OUTPUT_NAME "premo"
+                     )
+# make version info available in application
+configure_file( premo_version.h.in ${Premo_SOURCE_DIR}/src/app/premo_version.h )
+
+# define libraries to link
+target_link_libraries( PremoApp BamTools jsoncpp )
+
+# set application install destinations
+install( TARGETS PremoApp DESTINATION "bin")
