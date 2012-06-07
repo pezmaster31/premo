@@ -6,11 +6,17 @@
 # ==========================
 
 # set include path
-include_directories( ${Premo_SOURCE_DIR}/include )
+include_directories( ${Premo_SOURCE_DIR}/include
+                     ${Premo_SOURCE_DIR}/include/bamtools
+                     ${Premo_SOURCE_DIR}/include/jsoncpp
+                     ${Premo_SOURCE_DIR}/src/libs
+                   )
 
 # compile main premo application
 add_executable( PremoApp
                 main.cpp
+                options.cpp
+                premo.cpp
               )
 
 # set Premo application properties
