@@ -36,10 +36,12 @@ void Premo::initializeStats(void) {
 
 bool Premo::openInputFiles(void) {
 
+    return true;
 }
 
 bool Premo::outputResults(void) {
 
+    return true;
 }
 
 bool Premo::run(void) {
@@ -79,31 +81,31 @@ bool Premo::validateSettings(void) {
     // check for required parameters
     // -------------------------------
 
-    stringstream missing("the following parameters are missing: ");
+    stringstream missing("");
     bool hasMissing = false;
 
     if ( !m_settings.HasFastqFilename1 || m_settings.FastqFilename1.empty() ) {
-        missing << endl << "-fq1 (FASTQ filename)";
+        missing << endl << "\t-fq1 (FASTQ filename)";
         hasMissing = true;
     }
 
     if ( !m_settings.HasFastqFilename2 || m_settings.FastqFilename2.empty() ) {
-        missing << endl << "-fq2 (FASTQ filename)";
+        missing << endl << "\t-fq2 (FASTQ filename)";
         hasMissing = true;
     }
 
     if ( !m_settings.HasMosaikPath || m_settings.MosaikPath.empty() ) {
-        missing << endl << "-mosaik (path/to/Mosaik/bin)";
+        missing << endl << "\t-mosaik (path/to/Mosaik/bin)";
         hasMissing = true;
     }
 
     if ( !m_settings.HasReferenceArchiveFilename || m_settings.ReferenceArchiveFilename.empty() ) {
-        missing << endl << "-ref (Mosaik reference archive)";
+        missing << endl << "\t-ref (Mosaik reference archive)";
         hasMissing = true;
     }
 
     if ( !m_settings.HasScratchPath || m_settings.ScratchPath.empty() ) {
-        missing << endl << "-tmp (scratch directory for generated files)";
+        missing << endl << "\t-tmp (scratch directory for generated files)";
         hasMissing = true;
     }
 
@@ -111,61 +113,62 @@ bool Premo::validateSettings(void) {
     // check other parameters for valid ranges
     // -----------------------------------------
 
-    stringstream invalid("the following parameters are invalid: ");
+    stringstream invalid("");
     bool hasInvalid = false;
 
     if ( m_settings.HasBatchSize && m_settings.BatchSize == 0 ) {
-        invalid << endl << "-n cannot be zero";
+        invalid << endl << "\t-n cannot be zero";
         hasInvalid = true;
     }
 
     if ( m_settings.HasDeltaMean && m_settings.DeltaMean <= 0.0 ) {
-        invalid << endl << "-delta-mean must be a positive, non-zero value";
+        invalid << endl << "\t-delta-mean must be a positive, non-zero value";
         hasInvalid = true;
     }
 
     if ( m_settings.HasDeltaStdDev && m_settings.DeltaStdDev <= 0.0 ) {
-        invalid << endl << "-delta-sd must be a positive, non-zero value";
+        invalid << endl << "\t-delta-sd must be a positive, non-zero value";
         hasInvalid = true;
     }
 
     if ( m_settings.HasActSlope && m_settings.ActSlope <= 0.0 ) {
-        invalid << endl << "-act-slope must be a positive, non-zero value";
+        invalid << endl << "\t-act-slope must be a positive, non-zero value";
         hasInvalid = true;
     }
 
     if ( m_settings.HasBandwidth && m_settings.Bandwidth <= 0.0 ) {
-        invalid << endl << "-bw must be a positive, non-zero value";
+        invalid << endl << "\t-bw must be a positive, non-zero value";
         hasInvalid = true;
     }
 
     if ( m_settings.HasMhp && m_settings.Mhp == 0 ) {
-        invalid << endl << "-mhp cannot be zero";
+        invalid << endl << "\t-mhp cannot be zero";
         hasInvalid = true;
     }
 
     if ( m_settings.HasMmp && (m_settings.Mmp < 0.0 || m_settings.Mmp > 1.0) ) {
-        invalid << endl << "-mmp must be in the range [0.0 - 1.0]";
+        invalid << endl << "\t-mmp must be in the range [0.0 - 1.0]";
         hasInvalid = true;
     }
 
     // ---------------------------------------------------------------
-    // set error string & return failure if anything missing/invalid
+    // set error string if anything missing/invalid
     // ---------------------------------------------------------------
 
+    m_errorString.clear();
+
     if ( hasMissing ) {
-        m_errorString = missing.str();
-        return false;
+        m_errorString.append("\nthe following parameters are missing:");
+        m_errorString.append(missing.str());
     }
 
     if ( hasInvalid ) {
-        m_errorString = invalid.str();
-        return false;
+        m_errorString.append("\nthe following parameters are invalid:");
+        m_errorString.append(invalid.str());
     }
 
-    // -----------------------------
-    // otherwise, everything is OK
-    // -----------------------------
-    return true;
+    // --------------------------
+    // return validation status
+    // --------------------------
+    return !( hasMissing || hasInvalid );
 }
-
