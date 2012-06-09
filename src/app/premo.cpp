@@ -2,7 +2,7 @@
 // premo.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 7 June 2012 (DB)
+// Last modified: 9 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -72,7 +72,7 @@ bool Premo::openInputFiles(void) {
     }
 
     // otherwise, opened OK
-    else return true;
+    return true;
 }
 
 bool Premo::outputResults(void) {
@@ -96,7 +96,7 @@ bool Premo::run(void) {
 
         cerr << "Running batch: " << batchNumber << endl;
 
-        Batch batch(batchNumber, m_settings, &m_reader1, &m_reader2);
+        Batch batch(batchNumber, &m_settings, &m_reader1, &m_reader2);
         if ( batch.run() ) {
 
             // fetch results & update
@@ -105,8 +105,11 @@ bool Premo::run(void) {
 
 
         } else {
-            m_errorString = "premo ERROR: batch failed - \n";
-            m_errorString.append(batch.errorString());
+            stringstream s("premo ERROR: batch ");
+            s << batchNumber;
+            s << " failed - " << endl;
+            s << batch.errorString();
+            m_errorString = s.str();
             return false;
         }
 
@@ -121,7 +124,7 @@ bool Premo::run(void) {
     if ( !outputResults() )
         return false;
 
-    // return success
+    // if we get here, all should be OK
     return true;
 }
 

@@ -2,7 +2,7 @@
 // fastqwriter.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 8 June 2012 (DB)
+// Last modified: 9 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file writer
 // ***************************************************************************
@@ -25,6 +25,7 @@ class FastqWriter {
     public:
         void close(void);
         std::string errorString(void) const;
+        std::string filename(void) const;
         bool isOpen(void) const;
         bool open(const std::string& filename);
         bool write(Fastq* entry);

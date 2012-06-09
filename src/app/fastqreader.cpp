@@ -2,7 +2,7 @@
 // fastqreader.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 8 June 2012 (DB)
+// Last modified: 9 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file reader
 // ***************************************************************************
@@ -62,10 +62,17 @@ void FastqReader::close(void) {
         m_buffer = 0;
         m_bufferLength = 0;
     }
+
+    // erase stored filename
+    m_filename.clear();
 }
 
 string FastqReader::errorString(void) const {
     return m_errorString;
+}
+
+string FastqReader::filename(void) const {
+    return m_filename;
 }
 
 bool FastqReader::isOpen(void) const {

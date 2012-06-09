@@ -2,7 +2,7 @@
 // fastqwriter.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 8 June 2012 (DB)
+// Last modified: 9 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file writer
 // ***************************************************************************
@@ -31,10 +31,17 @@ void FastqWriter::close(void) {
         fclose(m_stream);
         m_stream = 0;
     }
+
+    // erase stored filename
+    m_filename.clear();
 }
 
 string FastqWriter::errorString(void) const {
     return m_errorString;
+}
+
+string FastqWriter::filename(void) const {
+    return m_filename;
 }
 
 bool FastqWriter::isOpen(void) const {

@@ -2,7 +2,7 @@
 // premo.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 6 June 2012 (DB)
+// Last modified: 9 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -40,8 +40,6 @@ class Premo {
 
         FastqReader m_reader1;
         FastqReader m_reader2;
-
-
 
         std::string m_errorString;
 };
