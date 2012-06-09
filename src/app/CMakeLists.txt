@@ -17,6 +17,7 @@ add_executable( PremoApp
                 batch.cpp
                 fastq.cpp
                 fastqreader.cpp
+                fastqwriter.cpp
                 main.cpp
                 options.cpp
                 premo.cpp

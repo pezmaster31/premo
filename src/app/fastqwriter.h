@@ -1,25 +1,25 @@
 // ***************************************************************************
-// fastqreader.h (c) 2012 Derek Barnett
+// fastqwriter.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
 // Last modified: 8 June 2012 (DB)
 // ---------------------------------------------------------------------------
-// FASTQ file reader
+// FASTQ file writer
 // ***************************************************************************
 
-#ifndef FASTQREADER_H
-#define FASTQREADER_H
+#ifndef FASTQWRITER_H
+#define FASTQWRITER_H
 
 #include <cstdio>
 #include <string>
 class Fastq;
 
-class FastqReader {
+class FastqWriter {
 
     // ctor & dtor
     public:
-        FastqReader(void);
-        ~FastqReader(void);
+        FastqWriter(void);
+        ~FastqWriter(void);
 
     // FastqReader interface
     public:
@@ -27,15 +27,13 @@ class FastqReader {
         std::string errorString(void) const;
         bool isOpen(void) const;
         bool open(const std::string& filename);
-        bool readNext(Fastq* entry);
+        bool write(Fastq* entry);
 
     // data members
     private:
-        FILE*       m_stream;
-        char*       m_buffer;
-        size_t      m_bufferLength;
+        FILE* m_stream;
         std::string m_filename;
         std::string m_errorString;
 };
 
-#endif // FASTQREADER_H
+#endif // FASTQWRITER_H

@@ -10,6 +10,7 @@
 #include "batch.h"
 #include "fastq.h"
 #include "fastqreader.h"
+#include "fastqwriter.h"
 #include "premo_settings.h"
 #include <cstdio>
 #include <iostream>
@@ -22,7 +23,7 @@ Batch::Batch(const int batchNumber,
              FastqReader* reader2)
     : m_reader1(reader1)
     , m_reader2(reader2)
-    , m_autoDeleteGeneratedFiles()
+    , m_autoDeleteGeneratedFiles(!settings.IsKeepGeneratedFiles)
 {
     // ----------------------------
     // set up generated filenames (scratchpath should already end in '/')
@@ -54,10 +55,12 @@ Batch::Batch(const int batchNumber,
 Batch::~Batch(void) {
 
     // delete any generated files
-    remove(m_generatedFastq1.c_str());
-    remove(m_generatedFastq2.c_str());
-    remove(m_generatedReadArchive.c_str());
-    remove(m_generatedBam.c_str());
+    if ( m_autoDeleteGeneratedFiles ) {
+        remove(m_generatedFastq1.c_str());
+        remove(m_generatedFastq2.c_str());
+        remove(m_generatedReadArchive.c_str());
+        remove(m_generatedBam.c_str());
+    }
 }
 
 string Batch::errorString(void) const {
@@ -66,17 +69,23 @@ string Batch::errorString(void) const {
 
 bool Batch::run(void) {
 
+    FastqWriter writer1;
+    writer1.open(m_generatedFastq1);
+
     Fastq f1;
+    for ( int i = 0; i < 10; ++i ) {
 
-    if ( m_reader1->readNext(&f1) ) {
+        // TODO: error reporting
+        if ( !m_reader1->readNext(&f1) ) {
+            return false;
+        } else {
 
-        cerr << "Read FASTQ entry: "       << endl
-             << "Header: " << f1.Header    << endl
-             << "Bases : " << f1.Bases     << endl
-             << "Quals : " << f1.Qualities << endl;
-        return true;
-    } else
-        return false;
+            if ( !writer1.write(&f1) ) {
+                return false;
+            }
+        }
+    }
+
 
 
     // create writer1, writer2 for temp output

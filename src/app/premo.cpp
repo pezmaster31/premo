@@ -11,6 +11,7 @@
 #include "batch.h"
 #include "fastqreader.h"
 #include "options.h"
+#include <iostream>
 #include <sstream>
 using namespace std;
 
