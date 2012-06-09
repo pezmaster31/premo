@@ -32,6 +32,7 @@ struct PremoSettings {
     bool HasOutputFilename;
     bool HasReferenceArchiveFilename;
     bool HasScratchPath;
+    bool IsKeepGeneratedFiles;
     bool IsVerbose;
     bool IsVersionRequested;
 
@@ -75,6 +76,7 @@ struct PremoSettings {
         , HasOutputFilename(false)
         , HasReferenceArchiveFilename(false)
         , HasScratchPath(false)
+        , IsKeepGeneratedFiles(false)
         , IsVerbose(false)
         , IsVersionRequested(false)
         , HasBatchSize(false)
@@ -108,6 +110,7 @@ struct PremoSettings {
         , HasOutputFilename(other.HasOutputFilename)
         , HasReferenceArchiveFilename(other.HasReferenceArchiveFilename)
         , HasScratchPath(other.HasScratchPath)
+        , IsKeepGeneratedFiles(other.IsKeepGeneratedFiles)
         , IsVerbose(other.IsVerbose)
         , IsVersionRequested(other.IsVersionRequested)
         , HasBatchSize(other.HasBatchSize)

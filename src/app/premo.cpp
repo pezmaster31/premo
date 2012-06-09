@@ -8,9 +8,24 @@
 // ***************************************************************************
 
 #include "premo.h"
+#include "batch.h"
+#include "fastqreader.h"
 #include "options.h"
 #include <sstream>
 using namespace std;
+
+// ------------------------
+// static utility methods
+// ------------------------
+
+static inline
+bool endsWith(const string& str, const string& query) {
+    return ( str.find(query) == (str.length() - query.length()) );
+}
+
+// ----------------------
+// Premo implementation
+// ----------------------
 
 Premo::Premo(const PremoSettings& settings)
     : m_settings(settings)
@@ -36,7 +51,27 @@ void Premo::initializeStats(void) {
 
 bool Premo::openInputFiles(void) {
 
-    return true;
+    // open FASTQ input files for reading
+    bool openedOk = true;
+    openedOk &= m_reader1.open(m_settings.FastqFilename1);
+    openedOk &= m_reader2.open(m_settings.FastqFilename2);
+
+    // check for failures
+    if ( !openedOk ) {
+
+        // build error string
+        m_errorString = "premo ERROR: could not open the following input FASTQ file(s):\n";
+        if ( !m_reader1.isOpen() )
+            m_errorString.append(m_settings.FastqFilename1);
+        if ( !m_reader2.isOpen() )
+            m_errorString.append(m_settings.FastqFilename2);
+
+        // return failure
+        return false;
+    }
+
+    // otherwise, opened OK
+    else return true;
 }
 
 bool Premo::outputResults(void) {
@@ -54,17 +89,31 @@ bool Premo::run(void) {
     if ( !openInputFiles() )
         return false;
 
-    // initialize anything else ??
-
     // main loop - batch processing
+    int batchNumber = 0;
     while ( !m_isFinished ) {
 
-        // process batch
-        // fire off batch                    -> reads N entries, write N entries to temp FASTQ file, MosaikBuild, MosaikAlign, parse BAM, calc stats
-        // update stats with batch results
-        // batch manages temp file destruction
-        // check for end condition
+        cerr << "Running batch: " << batchNumber << endl;
 
+        Batch batch(batchNumber, m_settings, &m_reader1, &m_reader2);
+        if ( batch.run() ) {
+
+            // fetch results & update
+
+            // check for end condition
+
+
+        } else {
+            m_errorString = "premo ERROR: batch failed - \n";
+            m_errorString.append(batch.errorString());
+            return false;
+        }
+
+        ++batchNumber;
+
+        // FOR NOW
+        if ( batchNumber == 10 )
+            m_isFinished = true;
     }
 
     // output results
@@ -97,6 +146,11 @@ bool Premo::validateSettings(void) {
     if ( !m_settings.HasMosaikPath || m_settings.MosaikPath.empty() ) {
         missing << endl << "\t-mosaik (path/to/Mosaik/bin)";
         hasMissing = true;
+    } else {
+
+        // append dir separator if missing
+        if ( !endsWith(m_settings.MosaikPath, "/") )
+            m_settings.MosaikPath.append("/");
     }
 
     if ( !m_settings.HasReferenceArchiveFilename || m_settings.ReferenceArchiveFilename.empty() ) {
@@ -107,6 +161,11 @@ bool Premo::validateSettings(void) {
     if ( !m_settings.HasScratchPath || m_settings.ScratchPath.empty() ) {
         missing << endl << "\t-tmp (scratch directory for generated files)";
         hasMissing = true;
+    } else {
+
+        // append dir separator if missing
+        if ( !endsWith(m_settings.ScratchPath, "/") )
+            m_settings.ScratchPath.append("/");
     }
 
     // -----------------------------------------

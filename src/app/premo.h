@@ -10,6 +10,7 @@
 #ifndef PREMO_H
 #define PREMO_H
 
+#include "fastqreader.h"
 #include "premo_settings.h"
 #include <string>
 
@@ -37,6 +38,8 @@ class Premo {
         PremoSettings m_settings;
         bool m_isFinished;
 
+        FastqReader m_reader1;
+        FastqReader m_reader2;
 
 
 

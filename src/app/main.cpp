@@ -61,8 +61,9 @@ int main(int argc, char* argv[]) {
     Options::AddValueOption("-ref",    FN,  ref,    "", settings.HasReferenceArchiveFilename, settings.ReferenceArchiveFilename, IO_Opts);
     Options::AddValueOption("-tmp",    DIR, tmp,    "", settings.HasScratchPath,              settings.ScratchPath,              IO_Opts);
 
-    Options::AddOption("-v", "verbose output (to stderr)", settings.IsVerbose, IO_Opts);
-    Options::AddOption("-version", "show premo version information", settings.IsVersionRequested, IO_Opts);
+    Options::AddOption("-keep",    "keep generated files (auto-deleted by default", settings.IsKeepGeneratedFiles, IO_Opts);
+    Options::AddOption("-v",       "verbose output (to stderr)",                    settings.IsVerbose,            IO_Opts);
+    Options::AddOption("-version", "show premo version information",                settings.IsVersionRequested,   IO_Opts);
 
     OptionGroup* PremoOpts = Options::CreateOptionGroup("Premo Bootstrapping Options");
 

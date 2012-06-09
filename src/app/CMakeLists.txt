@@ -14,6 +14,9 @@ include_directories( ${Premo_SOURCE_DIR}/include
 
 # compile main premo application
 add_executable( PremoApp
+                batch.cpp
+                fastq.cpp
+                fastqreader.cpp
                 main.cpp
                 options.cpp
                 premo.cpp
