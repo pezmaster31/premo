@@ -183,10 +183,8 @@ bool Premo::run(void) {
         append(m_currentResult.ReadLengths,     result.ReadLengths);
 
         // if not first batch, check to see if we're done
-        if ( batchNumber > 0 ) {
-            cerr << "about to checkFinished()" << endl;
+        if ( batchNumber > 0 )
             m_isFinished = checkFinished(previousResult, m_currentResult, m_settings);
-        }
 
         // increment our batch counter
         ++batchNumber;
@@ -378,8 +376,13 @@ bool Premo::writeOutput(void) {
     // generate Mosaik parameter set
     // -------------------------------
 
-    const double fragLengthMedian = calculateMedian(m_currentResult.FragmentLengths);
-    const double readLengthMedian = calculateMedian(m_currentResult.ReadLengths);
+    vector<int> fragmentLengths = m_currentResult.FragmentLengths;
+    vector<int> readLengths     = m_currentResult.ReadLengths;
+    sort(fragmentLengths.begin(), fragmentLengths.end());
+    sort(readLengths.begin(),     readLengths.end());
+
+    const double fragLengthMedian = calculateMedian(fragmentLengths);
+    const double readLengthMedian = calculateMedian(readLengths);
 
     Json::Value mosaikAlignerParameters(Json::objectValue);
     mosaikAlignerParameters["-act"] = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;

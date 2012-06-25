@@ -80,6 +80,9 @@ Batch::Batch(const int batchNumber,
     m_generatedBam = m_generatedBamStub;
     m_generatedBam.append(".bam");
 
+    m_generatedMosaikLog = m_generatedBamStub;
+    m_generatedMosaikLog.append(".mosaiklog");
+
     m_generatedMultipleBam = m_generatedBamStub;
     m_generatedMultipleBam.append(".multiple.bam");
 
@@ -98,6 +101,7 @@ Batch::~Batch(void) {
         remove(m_generatedFastq2.c_str());
         remove(m_generatedReadArchive.c_str());
         remove(m_generatedBam.c_str());
+        remove(m_generatedMosaikLog.c_str());
         remove(m_generatedMultipleBam.c_str());
         remove(m_generatedSpecialBam.c_str());
         remove(m_generatedStatFile.c_str());
@@ -263,7 +267,7 @@ bool Batch::runMosaikAligner(void) {
     if ( m_settings->HasJumpDbStub && !m_settings->JumpDbStub.empty() )
         commandStream << " -j " << m_settings->JumpDbStub;
     if ( !m_settings->IsVerbose )
-        commandStream << " -quiet >> " << m_generatedBamStub << ".mosaiklog";
+        commandStream << " -quiet >> " << m_generatedMosaikLog;
 
     // run MosaikAlign
     const string command = commandStream.str();
@@ -281,7 +285,7 @@ bool Batch::runMosaikBuild(void) {
                   << " -out " << m_generatedReadArchive
                   << " -st "  << m_settings->SeqTech;
     if ( !m_settings->IsVerbose )
-        commandStream << " -quiet >> " << m_generatedBamStub << ".mosaiklog";
+        commandStream << " -quiet >> " << m_generatedMosaikLog;
 
     // run MosaikBuild
     const string command = commandStream.str();

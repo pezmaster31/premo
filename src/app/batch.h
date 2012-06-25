@@ -54,6 +54,7 @@ class Batch {
         std::string m_generatedReadArchive;
         std::string m_generatedBamStub;
         std::string m_generatedBam;
+        std::string m_generatedMosaikLog;
         std::string m_generatedMultipleBam;
         std::string m_generatedSpecialBam;
         std::string m_generatedStatFile;
