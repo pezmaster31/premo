@@ -2,7 +2,7 @@
 // premo_settings.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 7 June 2012 (DB)
+// Last modified: 23 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Premo app settings
 // ***************************************************************************
@@ -10,27 +10,50 @@
 #ifndef PREMO_SETTINGS_H
 #define PREMO_SETTINGS_H
 
-#include "bamtools/api/bamtools_global.h"  // for uint32_t type
 #include <string>
 
-// default numerical values (can override any/all from cmdline)
-const uint32_t DEFAULT_ACTINTERCEPT = 13;
-const double   DEFAULT_ACTSLOPE     = 0.2;
-const double   DEFAULT_BANDWIDTH    = 2.5;
-const uint32_t DEFAULT_BATCHSIZE    = 1000;
-const double   DEFAULT_DELTAMEAN    = 0.01;
-const double   DEFAULT_DELTASTDDEV  = 0.01;
-const uint32_t DEFAULT_MHP          = 200;
-const double   DEFAULT_MMP          = 0.15;
+// default numerical values (can override any from command line)
+namespace Defaults {
+
+// alignment candidate threshold
+// generated MosaikAligner -act = ((ActSlope * ReadLength) + ActIntercept)
+const unsigned int ActIntercept = 13;
+const double ActSlope = 0.2;
+
+// banded Smith-Waterman multiplier
+// generated MosaikAligner -bw = (BwMultiplier * Mmp * ReadLength)
+const double BwMultiplier = 2.5;
+
+// number of mate-pairs per premo batch
+const unsigned int BatchSize = 1000;
+
+// stop running premo batches when the total median (for both FL & RL)
+// changes by less than this fraction after adding a new batch
+const double DeltaFragmentLength = 0.01;
+const double DeltaReadLength = 0.05;
+
+// maximum hash positions (see Mosaik docs for details)
+const unsigned int Mhp = 200;
+
+// maximum mismatch percentage (see Mosaik docs for details)
+const double Mmp = 0.15;
+
+// directory for generated files (they're cleaned up by default)
+const std::string ScratchPath(".");
+
+} // namespace Defaults
 
 struct PremoSettings {
 
     // I/O flags
+    bool HasAnnPeFilename;
+    bool HasAnnSeFilename;
     bool HasFastqFilename1;
     bool HasFastqFilename2;
+    bool HasJumpDbStub;
     bool HasMosaikPath;
     bool HasOutputFilename;
-    bool HasReferenceArchiveFilename;
+    bool HasReferenceFilename;
     bool HasScratchPath;
     bool IsKeepGeneratedFiles;
     bool IsVerbose;
@@ -38,103 +61,124 @@ struct PremoSettings {
 
     // premo flags
     bool HasBatchSize;
-    bool HasDeltaMean;
-    bool HasDeltaStdDev;
+    bool HasDeltaReadLength;
+    bool HasDeltaFragmentLength;
 
-    // mosaik "rule" flags
+    // mosaik flags
     bool HasActIntercept;
     bool HasActSlope;
-    bool HasBandwidth;
+    bool HasBwMultiplier;
     bool HasMhp;
     bool HasMmp;
+    bool HasSeqTech;
 
     // I/O parameters
+    std::string AnnPeFilename;
+    std::string AnnSeFilename;
     std::string FastqFilename1;
     std::string FastqFilename2;
+    std::string JumpDbStub;
     std::string MosaikPath;
     std::string OutputFilename;
-    std::string ReferenceArchiveFilename;
+    std::string ReferenceFilename;
     std::string ScratchPath;
 
     // premo parameters
-    uint32_t BatchSize;
-    double   DeltaMean;
-    double   DeltaStdDev;
+    unsigned int BatchSize;
+    double DeltaReadLength;
+    double DeltaFragmentLength;
 
-    // mosaik "rule" parameters
-    uint32_t ActIntercept;
-    double   ActSlope;
-    double   Bandwidth;
-    uint32_t Mhp;
-    double   Mmp;
+    // mosaik parameters
+    unsigned int ActIntercept;
+    double       ActSlope;
+    double       BwMultiplier;
+    unsigned int Mhp;
+    double       Mmp;
+    std::string  SeqTech;
 
     // ctors
     PremoSettings(void)
-        : HasFastqFilename1(false)
+        : HasAnnPeFilename(false)
+        , HasAnnSeFilename(false)
+        , HasFastqFilename1(false)
         , HasFastqFilename2(false)
+        , HasJumpDbStub(false)
         , HasMosaikPath(false)
         , HasOutputFilename(false)
-        , HasReferenceArchiveFilename(false)
+        , HasReferenceFilename(false)
         , HasScratchPath(false)
         , IsKeepGeneratedFiles(false)
         , IsVerbose(false)
         , IsVersionRequested(false)
         , HasBatchSize(false)
-        , HasDeltaMean(false)
-        , HasDeltaStdDev(false)
+        , HasDeltaReadLength(false)
+        , HasDeltaFragmentLength(false)
         , HasActIntercept(false)
         , HasActSlope(false)
-        , HasBandwidth(false)
+        , HasBwMultiplier(false)
         , HasMhp(false)
         , HasMmp(false)
+        , HasSeqTech(false)
+        , AnnPeFilename("")
+        , AnnSeFilename("")
         , FastqFilename1("")
         , FastqFilename2("")
+        , JumpDbStub("")
         , MosaikPath("")
         , OutputFilename("")
-        , ReferenceArchiveFilename("")
-        , ScratchPath("")
-        , BatchSize(DEFAULT_BATCHSIZE)
-        , DeltaMean(DEFAULT_DELTAMEAN)
-        , DeltaStdDev(DEFAULT_DELTASTDDEV)
-        , ActIntercept(DEFAULT_ACTINTERCEPT)
-        , ActSlope(DEFAULT_ACTSLOPE)
-        , Bandwidth(DEFAULT_BANDWIDTH)
-        , Mhp(DEFAULT_MHP)
-        , Mmp(DEFAULT_MMP)
+        , ReferenceFilename("")
+        , ScratchPath(Defaults::ScratchPath)
+        , BatchSize(Defaults::BatchSize)
+        , DeltaReadLength(Defaults::DeltaReadLength)
+        , DeltaFragmentLength(Defaults::DeltaFragmentLength)
+        , ActIntercept(Defaults::ActIntercept)
+        , ActSlope(Defaults::ActSlope)
+        , BwMultiplier(Defaults::BwMultiplier)
+        , Mhp(Defaults::Mhp)
+        , Mmp(Defaults::Mmp)
+        , SeqTech("")
     { }
 
     PremoSettings(const PremoSettings& other)
-        : HasFastqFilename1(other.HasFastqFilename1)
+        : HasAnnPeFilename(other.HasAnnPeFilename)
+        , HasAnnSeFilename(other.HasAnnSeFilename)
+        , HasFastqFilename1(other.HasFastqFilename1)
         , HasFastqFilename2(other.HasFastqFilename2)
+        , HasJumpDbStub(other.HasJumpDbStub)
         , HasMosaikPath(other.HasMosaikPath)
         , HasOutputFilename(other.HasOutputFilename)
-        , HasReferenceArchiveFilename(other.HasReferenceArchiveFilename)
+        , HasReferenceFilename(other.HasReferenceFilename)
         , HasScratchPath(other.HasScratchPath)
         , IsKeepGeneratedFiles(other.IsKeepGeneratedFiles)
         , IsVerbose(other.IsVerbose)
         , IsVersionRequested(other.IsVersionRequested)
         , HasBatchSize(other.HasBatchSize)
-        , HasDeltaMean(other.HasDeltaMean)
-        , HasDeltaStdDev(other.HasDeltaStdDev)
+        , HasDeltaReadLength(other.HasDeltaReadLength)
+        , HasDeltaFragmentLength(other.HasDeltaFragmentLength)
         , HasActIntercept(other.HasActIntercept)
         , HasActSlope(other.HasActSlope)
-        , HasBandwidth(other.HasBandwidth)
+        , HasBwMultiplier(other.HasBwMultiplier)
         , HasMhp(other.HasMhp)
         , HasMmp(other.HasMmp)
+        , HasSeqTech(other.HasSeqTech)
+        , AnnPeFilename(other.AnnPeFilename)
+        , AnnSeFilename(other.AnnSeFilename)
         , FastqFilename1(other.FastqFilename1)
         , FastqFilename2(other.FastqFilename2)
+        , JumpDbStub(other.JumpDbStub)
         , MosaikPath(other.MosaikPath)
         , OutputFilename(other.OutputFilename)
-        , ReferenceArchiveFilename(other.ReferenceArchiveFilename)
+        , ReferenceFilename(other.ReferenceFilename)
         , ScratchPath(other.ScratchPath)
         , BatchSize(other.BatchSize)
-        , DeltaMean(other.DeltaMean)
-        , DeltaStdDev(other.DeltaStdDev)
+        , DeltaReadLength(other.DeltaReadLength)
+        , DeltaFragmentLength(other.DeltaFragmentLength)
         , ActIntercept(other.ActIntercept)
         , ActSlope(other.ActSlope)
-        , Bandwidth(other.Bandwidth)
+        , BwMultiplier(other.BwMultiplier)
         , Mhp(other.Mhp)
         , Mmp(other.Mmp)
+        , SeqTech(other.SeqTech)
     { }
 };
 

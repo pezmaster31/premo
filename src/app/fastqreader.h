@@ -2,7 +2,7 @@
 // fastqreader.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 9 June 2012 (DB)
+// Last modified: 19 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file reader
 // ***************************************************************************
@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <string>
+#include <zlib.h>
 class Fastq;
 
 class FastqReader {
@@ -32,9 +33,13 @@ class FastqReader {
 
     // data members
     private:
-        FILE*       m_stream;
-        char*       m_buffer;
-        size_t      m_bufferLength;
+        FILE*  m_stream;
+        gzFile m_zStream;
+        bool   m_isCompressed;
+
+        char*  m_buffer;
+        size_t m_bufferLength;
+
         std::string m_filename;
         std::string m_errorString;
 };

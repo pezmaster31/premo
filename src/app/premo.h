@@ -2,7 +2,7 @@
 // premo.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 9 June 2012 (DB)
+// Last modified: 23 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -12,7 +12,9 @@
 
 #include "fastqreader.h"
 #include "premo_settings.h"
+#include "result.h"
 #include <string>
+#include <vector>
 
 class Premo {
 
@@ -28,10 +30,9 @@ class Premo {
 
     // internal methods
     private:
-        void initializeStats(void);
         bool openInputFiles(void);
-        bool outputResults(void);
         bool validateSettings(void);
+        bool writeOutput(void);
 
     // data members
     private:
@@ -40,6 +41,9 @@ class Premo {
 
         FastqReader m_reader1;
         FastqReader m_reader2;
+
+        std::vector<Result> m_batchResults;
+        Result m_currentResult;
 
         std::string m_errorString;
 };

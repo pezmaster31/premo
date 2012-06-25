@@ -2,7 +2,7 @@
 // batch.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 9 June 2012 (DB)
+// Last modified: 24 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Premo batch
 // ***************************************************************************
@@ -13,31 +13,28 @@
 #include "fastqwriter.h"
 #include "premo_settings.h"
 #include "bamtools/api/BamReader.h"
+
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <iostream>
+#include <numeric>
 #include <sstream>
+#include <vector>
 using namespace std;
 
-// -----------------------------
-// BatchResults implementation
-// -----------------------------
+// -------------------------
+// utility methods
+// -------------------------
 
-BatchResults::BatchResults(void)
-    : NumReads(0)
-    , MeanReadLength(0.0)
-    , MeanFragmentLength(0.0)
-    , StdDevFragmentLength(0.0)
-{ }
-
-BatchResults::BatchResults(const BatchResults& other)
-    : NumReads(other.NumReads)
-    , MeanReadLength(other.MeanReadLength)
-    , MeanFragmentLength(other.MeanFragmentLength)
-    , StdDevFragmentLength(other.StdDevFragmentLength)
-{ }
-
-BatchResults::~BatchResults(void) { }
+static inline
+int32_t calculateFragmentLength(const BamTools::BamAlignment& mate1,
+                                const BamTools::BamAlignment& mate2)
+{
+    assert( abs(mate1.InsertSize) == abs(mate2.InsertSize) );
+    return mate1.Length + abs(mate1.InsertSize) + mate2.Length;
+}
 
 // ----------------------
 // Batch implementation
@@ -52,30 +49,44 @@ Batch::Batch(const int batchNumber,
     , m_reader2(reader2)
 {
     // ----------------------------
-    // set up generated filenames (scratchpath should already end in '/')
+    // set up generated filenames
     // ----------------------------
+
+    const string prefix("premo_batch");
 
     stringstream s;
 
     // mate1 FASTQ
-    s.str(m_settings->ScratchPath);
-    s << "premo_batch" << batchNumber << "_mate1.fq";
+    s.str("");
+    s << m_settings->ScratchPath << prefix << batchNumber << "_mate1.fq";
     m_generatedFastq1 = s.str();
 
     // mate2 FASTQ
-    s.str(m_settings->ScratchPath);
-    s << "premo_batch" << batchNumber << "_mate2.fq";
+    s.str("");
+    s << m_settings->ScratchPath << prefix << batchNumber << "_mate2.fq";
     m_generatedFastq2 = s.str();
 
     // Mosaik read archive
-    s.str(m_settings->ScratchPath);
-    s << "premo_batch" << batchNumber << "_reads.mkb";
+    s.str("");
+    s << m_settings->ScratchPath << prefix << batchNumber << "_reads.mkb";
     m_generatedReadArchive = s.str();
 
-    // Mosaik alignment
-    s.str(m_settings->ScratchPath);
-    s << "premo_batch" << batchNumber << "_aligned.bam";
-    m_generatedBam = s.str();
+    // Mosaik alignment files
+    s.str("");
+    s << m_settings->ScratchPath << prefix << batchNumber << "_aligned";
+    m_generatedBamStub = s.str();
+
+    m_generatedBam = m_generatedBamStub;
+    m_generatedBam.append(".bam");
+
+    m_generatedMultipleBam = m_generatedBamStub;
+    m_generatedMultipleBam.append(".multiple.bam");
+
+    m_generatedSpecialBam = m_generatedBamStub;
+    m_generatedSpecialBam.append(".special.bam");
+
+    m_generatedStatFile = m_generatedBamStub;
+    m_generatedStatFile.append(".stat");
 }
 
 Batch::~Batch(void) {
@@ -86,6 +97,9 @@ Batch::~Batch(void) {
         remove(m_generatedFastq2.c_str());
         remove(m_generatedReadArchive.c_str());
         remove(m_generatedBam.c_str());
+        remove(m_generatedMultipleBam.c_str());
+        remove(m_generatedSpecialBam.c_str());
+        remove(m_generatedStatFile.c_str());
     }
 }
 
@@ -162,38 +176,53 @@ bool Batch::generateTempFastqFiles(void) {
     return true;
 }
 
-bool Batch::parseAlignmentForStats(void) {
+bool Batch::parseAlignmentFile(void) {
 
     // open reader on new BAM alignment file
     BamTools::BamReader reader;
     if ( !reader.Open(m_generatedBam) ) {
         m_errorString = "premo ERROR: could not open generated BAM file: ";
         m_errorString.append(m_generatedBam);
-        m_errorString.append(" to calculate stats");
+        m_errorString.append(" to parse alignments");
         return false;
     }
 
-    uint32_t numReads = 0;
-    uint64_t numBases = 0;
+    // set up data containers
+    m_result.ReadLengths.reserve(2 * m_settings->BatchSize);
+    m_result.FragmentLengths.reserve(m_settings->BatchSize);
 
     // plow through alignments
-    BamTools::BamAlignment a;
-    while ( reader.GetNextAlignmentCore(a) ) {
+    BamTools::BamAlignment mate1;
+    BamTools::BamAlignment mate2;
+    while ( reader.GetNextAlignmentCore(mate1) ) {
 
-        ++numReads;
-        numBases += a.Length;
+        // store mate1 read length, regardless of aligned state
+        m_result.ReadLengths.push_back(mate1.Length);
 
+        // read mate2
+        if ( reader.GetNextAlignmentCore(mate2) ) {
 
+            // store mate2 read length, regardless of aligned state
+            m_result.ReadLengths.push_back(mate2.Length);
 
-
+            // if both mates mapped to same reference
+            if ( mate1.IsMapped() &&
+                 mate2.IsMapped() &&
+                 (mate1.RefID == mate2.RefID) )
+            {
+                // calculate & store fragment length
+                m_result.FragmentLengths.push_back( calculateFragmentLength(mate1, mate2) );
+            }
+        }
     }
     reader.Close();
 
-    // store stats for reporting later
-    const double meanReadLength = ( numBases / numReads );
-
     // if we get here, all should be OK
     return true;
+}
+
+Result Batch::result(void) const {
+    return m_result;
 }
 
 bool Batch::run(void) {
@@ -206,26 +235,32 @@ bool Batch::run(void) {
     if ( !runMosaikPipeline() )
         return false;
 
-    // parse BAM for stats
-    if ( !parseAlignmentForStats() )
+    // parse BAM for counts
+    if ( !parseAlignmentFile() )
         return false;
 
     // if we get here, all should be OK
     return true;
 }
 
-bool Batch::runMosaikAlign(void) {
+bool Batch::runMosaikAligner(void) {
 
     // setup MosaikAlign command line
     stringstream commandStream("");
-    commandStream << m_settings->MosaikPath << "MosaikAlign"   // (mosaikpath should already end in '/')
-                  << " -ia "  << m_settings->ReferenceArchiveFilename
-                  << " -in "  << m_generatedReadArchive
-                  << " -out " << m_generatedBam
-                  << " -mhp " << m_settings->Mhp
-                  << " -mmp " << m_settings->Mmp;
+    commandStream << m_settings->MosaikPath << "MosaikAligner"   // (mosaikpath should already end in '/')
+                  << " -ia "    << m_settings->ReferenceFilename
+                  << " -in "    << m_generatedReadArchive
+                  << " -out "   << m_generatedBamStub
+                  << " -annpe " << m_settings->AnnPeFilename
+                  << " -annse " << m_settings->AnnSeFilename
+                  << " -mhp "   << m_settings->Mhp
+                  << " -mmp "   << m_settings->Mmp
+                  << " -kd -pd ";
+
+    if ( m_settings->HasJumpDbStub && !m_settings->JumpDbStub.empty() )
+        commandStream << " -j " << m_settings->JumpDbStub;
     if ( !m_settings->IsVerbose )
-        commandStream << " -quiet";
+        commandStream << " -quiet >> " << m_generatedBamStub << ".mosaiklog";
 
     // run MosaikAlign
     const string command = commandStream.str();
@@ -240,9 +275,10 @@ bool Batch::runMosaikBuild(void) {
     commandStream << m_settings->MosaikPath << "MosaikBuild"   // (mosaikpath should already end in '/')
                   << " -q "   << m_generatedFastq1
                   << " -q2 "  << m_generatedFastq2
-                  << " -out " << m_generatedReadArchive;
+                  << " -out " << m_generatedReadArchive
+                  << " -st "  << m_settings->SeqTech;
     if ( !m_settings->IsVerbose )
-        commandStream << " -quiet";
+        commandStream << " -quiet >> " << m_generatedBamStub << ".mosaiklog";
 
     // run MosaikBuild
     const string command = commandStream.str();
@@ -257,7 +293,7 @@ bool Batch::runMosaikPipeline(void) {
         return false;
 
     // align batch
-    if ( !runMosaikAlign() )
+    if ( !runMosaikAligner() )
         return false;
 
     // if we get here, all should be OK

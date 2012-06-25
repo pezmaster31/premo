@@ -32,7 +32,7 @@ set_target_properties( PremoApp PROPERTIES
 configure_file( premo_version.h.in ${Premo_SOURCE_DIR}/src/app/premo_version.h )
 
 # define libraries to link
-target_link_libraries( PremoApp BamTools jsoncpp )
+target_link_libraries( PremoApp BamTools jsoncpp z )
 
 # set application install destinations
 install( TARGETS PremoApp DESTINATION "bin")

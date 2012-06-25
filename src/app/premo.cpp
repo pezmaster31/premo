@@ -2,15 +2,26 @@
 // premo.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 9 June 2012 (DB)
+// Last modified: 24 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
 
 #include "premo.h"
+
 #include "batch.h"
 #include "fastqreader.h"
 #include "options.h"
+#include "stats.h"
+
+#include "jsoncpp/json_value.h"
+#include "jsoncpp/json_writer.h"
+
+#include <cassert>
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 using namespace std;
@@ -19,9 +30,76 @@ using namespace std;
 // static utility methods
 // ------------------------
 
+static
+Json::Value containerStats(const vector<int>& container) {
+
+    Json::Value result(Json::objectValue);
+    result["count"] = container.size();
+
+    if ( !container.empty() ) {
+        const Quartiles quartiles = calculateQuartiles(container);
+        result["median"] = quartiles.Q2;
+        result["Q1"] = quartiles.Q1;
+        result["Q3"] = quartiles.Q3;
+    }
+
+    return result;
+}
+
+static
+Json::Value resultToJson(const Result& result) {
+    Json::Value json(Json::objectValue);
+    json["fragment length"] = containerStats(result.FragmentLengths);
+    json["read length"]     = containerStats(result.ReadLengths);
+    return json;
+}
+
+static
+bool isConverged(const vector<int>& previous,
+                 const vector<int>& current,
+                 const double cutoffDelta)
+{
+    // sort (a copy of) input containers (req'd for median calculation)
+    vector<int> currentValues  = current;
+    vector<int> previousValues = previous;
+    sort(currentValues.begin(), currentValues.end());
+    sort(previousValues.begin(), previousValues.end());
+
+    // calculate medians
+    const double currentMedian  = calculateMedian(currentValues);
+    const double previousMedian = calculateMedian(previousValues);
+
+    // calculate difference between previous & current values
+    const double diff = fabs( currentMedian - previousMedian );
+
+    // calculate delta (ratio) from old values
+    const double observedDelta = ( diff / previousMedian );
+
+    // return whether observed delta is below requested cutoff
+    return ( observedDelta <= cutoffDelta );
+}
+
+static
+bool checkFinished(const Result& previousResult,
+                   const Result& currentResult,
+                   const PremoSettings& settings)
+{
+    return isConverged(previousResult.FragmentLengths,
+                       currentResult.FragmentLengths,
+                       settings.DeltaFragmentLength)  &&
+           isConverged(previousResult.ReadLengths,
+                       currentResult.ReadLengths,
+                       settings.DeltaReadLength);
+}
+
+template<typename T>
+void append(std::vector<T>& dest, const std::vector<T>& source) {
+    dest.insert(dest.end(), source.begin(), source.end());
+}
+
 static inline
 bool endsWith(const string& str, const string& query) {
-    return ( str.find(query) == (str.length() - query.length()) );
+    return ( str.find_last_of(query) == (str.length() - query.length()) );
 }
 
 // ----------------------
@@ -31,23 +109,12 @@ bool endsWith(const string& str, const string& query) {
 Premo::Premo(const PremoSettings& settings)
     : m_settings(settings)
     , m_isFinished(false)
-{
-    // if no output file provided, use stdout for JSON output
-    if ( !m_settings.HasOutputFilename )
-        m_settings.OutputFilename = Options::StandardOut();
-
-    // do any upfront stats prep ??
-    initializeStats();
-}
+{ }
 
 Premo::~Premo(void) { }
 
 string Premo::errorString(void) const {
     return m_errorString;
-}
-
-void Premo::initializeStats(void) {
-
 }
 
 bool Premo::openInputFiles(void) {
@@ -62,21 +129,16 @@ bool Premo::openInputFiles(void) {
 
         // build error string
         m_errorString = "premo ERROR: could not open the following input FASTQ file(s):\n";
-        if ( !m_reader1.isOpen() )
-            m_errorString.append(m_settings.FastqFilename1);
-        if ( !m_reader2.isOpen() )
-            m_errorString.append(m_settings.FastqFilename2);
-
+        if ( !m_reader1.isOpen() ) m_errorString.append(m_settings.FastqFilename1);
+        if ( !m_reader2.isOpen() ) m_errorString.append(m_settings.FastqFilename2);
         // return failure
         return false;
     }
 
+    if ( m_settings.IsVerbose )
+        cerr << "input FASTQ files opened OK" << endl;
+
     // otherwise, opened OK
-    return true;
-}
-
-bool Premo::outputResults(void) {
-
     return true;
 }
 
@@ -94,17 +156,14 @@ bool Premo::run(void) {
     int batchNumber = 0;
     while ( !m_isFinished ) {
 
-        cerr << "Running batch: " << batchNumber << endl;
+        if ( m_settings.IsVerbose )
+            cerr << "running batch: " << batchNumber << endl;
 
+        // run batch
         Batch batch(batchNumber, &m_settings, &m_reader1, &m_reader2);
-        if ( batch.run() ) {
+        if ( !batch.run() ) {
 
-            // fetch results & update
-
-            // check for end condition
-
-
-        } else {
+            // if batch failed, set error & return failure
             stringstream s("premo ERROR: batch ");
             s << batchNumber;
             s << " failed - " << endl;
@@ -113,18 +172,30 @@ bool Premo::run(void) {
             return false;
         }
 
-        ++batchNumber;
+        // store batch results
+        const Result result = batch.result();
+        m_batchResults.push_back( result );
 
-        // FOR NOW
-        if ( batchNumber == 10 )
-            m_isFinished = true;
+        // store previous result before adding batch data to "current" result
+        const Result previousResult = m_currentResult;
+
+        // add batch's data to current, overall result
+        append(m_currentResult.FragmentLengths, result.FragmentLengths);
+        append(m_currentResult.ReadLengths, result.ReadLengths);
+
+        // if not first batch, check to see if we're done
+        if ( batchNumber > 0 )
+            m_isFinished = checkFinished(previousResult, m_currentResult, m_settings);
+
+        // increment our batch counter
+        ++batchNumber;
     }
 
     // output results
-    if ( !outputResults() )
+    if ( !writeOutput() )
         return false;
 
-    // if we get here, all should be OK
+    // if we get here, return success
     return true;
 }
 
@@ -136,6 +207,16 @@ bool Premo::validateSettings(void) {
 
     stringstream missing("");
     bool hasMissing = false;
+
+    if ( !m_settings.HasAnnPeFilename || m_settings.AnnPeFilename.empty() ) {
+        missing << endl << "\t-annpe (paired-end neural network filename)";
+        hasMissing = true;
+    }
+
+    if ( !m_settings.HasAnnSeFilename || m_settings.AnnSeFilename.empty() ) {
+        missing << endl << "\t-annse (single-end neural network filename)";
+        hasMissing = true;
+    }
 
     if ( !m_settings.HasFastqFilename1 || m_settings.FastqFilename1.empty() ) {
         missing << endl << "\t-fq1 (FASTQ filename)";
@@ -152,12 +233,17 @@ bool Premo::validateSettings(void) {
         hasMissing = true;
     } else {
 
-        // append dir separator if missing
+        // append dir separator if missing from path
         if ( !endsWith(m_settings.MosaikPath, "/") )
             m_settings.MosaikPath.append("/");
     }
 
-    if ( !m_settings.HasReferenceArchiveFilename || m_settings.ReferenceArchiveFilename.empty() ) {
+    if ( !m_settings.HasOutputFilename || m_settings.OutputFilename.empty() ) {
+        missing << endl << "\t-out (output filename)";
+        hasMissing = true;
+    }
+
+    if ( !m_settings.HasReferenceFilename || m_settings.ReferenceFilename.empty() ) {
         missing << endl << "\t-ref (Mosaik reference archive)";
         hasMissing = true;
     }
@@ -167,9 +253,14 @@ bool Premo::validateSettings(void) {
         hasMissing = true;
     } else {
 
-        // append dir separator if missing
+        // append dir separator if missing from path
         if ( !endsWith(m_settings.ScratchPath, "/") )
             m_settings.ScratchPath.append("/");
+    }
+
+    if ( !m_settings.HasSeqTech || m_settings.SeqTech.empty() ) {
+        missing << endl << "\t-st (sequencing technology)";
+        hasMissing = true;
     }
 
     // -----------------------------------------
@@ -179,28 +270,29 @@ bool Premo::validateSettings(void) {
     stringstream invalid("");
     bool hasInvalid = false;
 
-    if ( m_settings.HasBatchSize && m_settings.BatchSize == 0 ) {
-        invalid << endl << "\t-n cannot be zero";
-        hasInvalid = true;
-    }
-
-    if ( m_settings.HasDeltaMean && m_settings.DeltaMean <= 0.0 ) {
-        invalid << endl << "\t-delta-mean must be a positive, non-zero value";
-        hasInvalid = true;
-    }
-
-    if ( m_settings.HasDeltaStdDev && m_settings.DeltaStdDev <= 0.0 ) {
-        invalid << endl << "\t-delta-sd must be a positive, non-zero value";
-        hasInvalid = true;
-    }
 
     if ( m_settings.HasActSlope && m_settings.ActSlope <= 0.0 ) {
         invalid << endl << "\t-act-slope must be a positive, non-zero value";
         hasInvalid = true;
     }
 
-    if ( m_settings.HasBandwidth && m_settings.Bandwidth <= 0.0 ) {
-        invalid << endl << "\t-bw must be a positive, non-zero value";
+    if ( m_settings.HasBatchSize && m_settings.BatchSize == 0 ) {
+        invalid << endl << "\t-n cannot be zero";
+        hasInvalid = true;
+    }
+
+    if ( m_settings.HasBwMultiplier && m_settings.BwMultiplier <= 0.0 ) {
+        invalid << endl << "\t-bwm must be a positive, non-zero value";
+        hasInvalid = true;
+    }
+
+    if ( m_settings.HasDeltaFragmentLength && m_settings.DeltaFragmentLength <= 0.0 ) {
+        invalid << endl << "\t-delta-fl must be a positive, non-zero value";
+        hasInvalid = true;
+    }
+
+    if ( m_settings.HasDeltaReadLength && m_settings.DeltaReadLength <= 0.0 ) {
+        invalid << endl << "\t-delta-rl must be a positive, non-zero value";
         hasInvalid = true;
     }
 
@@ -233,5 +325,121 @@ bool Premo::validateSettings(void) {
     // --------------------------
     // return validation status
     // --------------------------
-    return !( hasMissing || hasInvalid );
+
+    const bool settingsOk = !( hasMissing || hasInvalid );
+
+    if ( settingsOk && m_settings.IsVerbose )
+        cerr << "command-line settings OK" << endl;
+
+    return settingsOk;
+}
+
+bool Premo::writeOutput(void) {
+
+    Json::Value root(Json::objectValue);
+
+    // ------------------------------
+    // store top-level results
+    // ------------------------------
+
+    root["overall result"] = resultToJson(m_currentResult);
+
+    // -------------------------
+    // store per-batch results
+    // -------------------------
+
+    Json::Value batches(Json::arrayValue);
+    vector<Result>::const_iterator batchIter = m_batchResults.begin();
+    vector<Result>::const_iterator batchEnd  = m_batchResults.end();
+    for ( ; batchIter != batchEnd; ++batchIter )
+        batches.append( resultToJson(*batchIter) );
+
+    root["batch results"] = batches;
+
+    // ------------------------------
+    // store settings used
+    // ------------------------------
+
+    Json::Value settings(Json::objectValue);
+    settings["act intercept"]         = m_settings.ActIntercept;
+    settings["act slope"]             = m_settings.ActSlope;
+    settings["bandwidth multiplier"]  = m_settings.BwMultiplier;
+    settings["batch size"]            = m_settings.BatchSize;
+    settings["delta fragment length"] = m_settings.DeltaFragmentLength;
+    settings["delta read length"]     = m_settings.DeltaReadLength;
+    settings["mhp"]                   = m_settings.Mhp;
+    settings["mmp"]                   = m_settings.Mmp;
+    settings["seq tech"]              = m_settings.SeqTech;
+
+    root["settings"] = settings;
+
+    // -------------------------------
+    // generate Mosaik parameter set
+    // -------------------------------
+
+    const string INCLUDE("include");
+    const string VALUE("value");
+
+    const double fragLengthMedian = calculateMedian(m_currentResult.FragmentLengths);
+    const double readLengthMedian = calculateMedian(m_currentResult.ReadLengths);
+
+    Json::Value mosaikAct(Json::objectValue);
+    mosaikAct[INCLUDE] = true;
+    mosaikAct[VALUE]   = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;
+
+    Json::Value mosaikBw(Json::objectValue);
+    mosaikBw[INCLUDE] = true;
+    mosaikBw[VALUE]   = ceil( m_settings.BwMultiplier * readLengthMedian );
+
+    Json::Value mosaikLs(Json::objectValue);
+    mosaikLs[INCLUDE] = true;
+    mosaikLs[VALUE]   = fragLengthMedian;
+
+    Json::Value mosaikMhp(Json::objectValue);
+    mosaikMhp[INCLUDE] = true;
+    mosaikMhp[VALUE]   = m_settings.Mhp;
+
+    Json::Value mosaikMmp(Json::objectValue);
+    mosaikMmp[INCLUDE] = true;
+    mosaikMmp[VALUE]   = m_settings.Mmp;
+
+    Json::Value mosaikSt(Json::objectValue);
+    mosaikSt[INCLUDE] = true;
+    mosaikSt[VALUE]   = m_settings.SeqTech;
+
+    Json::Value mosaikAlignerParameters(Json::objectValue);
+    mosaikAlignerParameters["-act"] = mosaikAct;
+    mosaikAlignerParameters["-bw"]  = mosaikBw;
+    mosaikAlignerParameters["-ls"]  = mosaikLs;
+    mosaikAlignerParameters["-mhp"] = mosaikMhp;
+    mosaikAlignerParameters["-mmp"] = mosaikMmp;
+    mosaikAlignerParameters["-st"]  = mosaikSt;
+
+    Json::Value parameters(Json::objectValue);
+    parameters["MosaikAligner"] = mosaikAlignerParameters;
+
+    root["parameters"] = parameters;
+
+    // ---------------------------
+    // write JSON to output file
+    // ---------------------------
+
+    // open stream on file
+    ofstream outFile(m_settings.OutputFilename.c_str());
+    if ( !outFile ) {
+        m_errorString = "premo ERROR: could not open final output file: ";
+        m_errorString.append(m_settings.OutputFilename);
+        return false;
+    }
+
+    // write "pretty-printed" JSON contents to file
+    Json::StyledStreamWriter writer;
+    writer.write(outFile, root);
+
+    if ( m_settings.IsVerbose )
+        cerr << "results written OK" << endl;
+
+    // clean up & return success
+    outFile.close();
+    return true;
 }
