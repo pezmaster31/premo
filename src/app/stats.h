@@ -10,6 +10,7 @@
 #ifndef STATS_H
 #define STATS_H
 
+#include <algorithm>
 #include <vector>
 
 struct Quartiles {
@@ -91,6 +92,47 @@ Quartiles calculateQuartiles(const std::vector<T>& container) {
     }
 
     return result;
+}
+
+// N.B. - type T must be comparable to a double
+template<typename T>
+struct OutOfRange {
+
+    OutOfRange(const double low, const double high)
+        : m_low(low)
+        , m_high(high)
+    { }
+
+    bool operator()(const T value) const {
+        return ( value < m_low ) || ( value > m_high );
+    }
+
+    private:
+        double m_low;
+        double m_high;
+};
+
+template<typename T>
+void removeOutliers(std::vector<T>& container) {
+
+    // sort container
+    std::sort(container.begin(), container.end());
+
+    // determine IQR & cutoffs
+    const Quartiles quartiles = calculateQuartiles(container);
+    const double IQR = quartiles.Q3 - quartiles.Q1;
+    if ( IQR == 0.0 )
+        return;
+
+    const double cutoff = IQR * 3;
+    const double lowCutoff  = quartiles.Q1 - cutoff;
+    const double highCutoff = quartiles.Q3 + cutoff;
+
+    // remove values above & below cutoffs
+    container.erase( std::remove_if(container.begin(),
+                                    container.end(),
+                                    OutOfRange<T>(lowCutoff, highCutoff)),
+                     container.end());
 }
 
 #endif // STATS_H

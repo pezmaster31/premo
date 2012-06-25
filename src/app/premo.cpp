@@ -7,17 +7,12 @@
 // Main Premo workhorse
 // ***************************************************************************
 
-#include "premo.h"
-
 #include "batch.h"
-#include "fastqreader.h"
 #include "options.h"
+#include "premo.h"
 #include "stats.h"
-
 #include "jsoncpp/json_value.h"
 #include "jsoncpp/json_writer.h"
-
-#include <cassert>
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
@@ -34,10 +29,14 @@ static
 Json::Value containerStats(const vector<int>& container) {
 
     Json::Value result(Json::objectValue);
-    result["count"] = container.size();
+    result["count"] = static_cast<Json::UInt>(container.size());
 
     if ( !container.empty() ) {
-        const Quartiles quartiles = calculateQuartiles(container);
+
+        vector<int> c = container;
+        sort(c.begin(), c.end());
+
+        const Quartiles quartiles = calculateQuartiles(c);
         result["median"] = quartiles.Q2;
         result["Q1"] = quartiles.Q1;
         result["Q3"] = quartiles.Q3;
@@ -62,7 +61,7 @@ bool isConverged(const vector<int>& previous,
     // sort (a copy of) input containers (req'd for median calculation)
     vector<int> currentValues  = current;
     vector<int> previousValues = previous;
-    sort(currentValues.begin(), currentValues.end());
+    sort(currentValues.begin(),  currentValues.end());
     sort(previousValues.begin(), previousValues.end());
 
     // calculate medians
@@ -181,11 +180,13 @@ bool Premo::run(void) {
 
         // add batch's data to current, overall result
         append(m_currentResult.FragmentLengths, result.FragmentLengths);
-        append(m_currentResult.ReadLengths, result.ReadLengths);
+        append(m_currentResult.ReadLengths,     result.ReadLengths);
 
         // if not first batch, check to see if we're done
-        if ( batchNumber > 0 )
+        if ( batchNumber > 0 ) {
+            cerr << "about to checkFinished()" << endl;
             m_isFinished = checkFinished(previousResult, m_currentResult, m_settings);
+        }
 
         // increment our batch counter
         ++batchNumber;
@@ -377,43 +378,16 @@ bool Premo::writeOutput(void) {
     // generate Mosaik parameter set
     // -------------------------------
 
-    const string INCLUDE("include");
-    const string VALUE("value");
-
     const double fragLengthMedian = calculateMedian(m_currentResult.FragmentLengths);
     const double readLengthMedian = calculateMedian(m_currentResult.ReadLengths);
 
-    Json::Value mosaikAct(Json::objectValue);
-    mosaikAct[INCLUDE] = true;
-    mosaikAct[VALUE]   = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;
-
-    Json::Value mosaikBw(Json::objectValue);
-    mosaikBw[INCLUDE] = true;
-    mosaikBw[VALUE]   = ceil( m_settings.BwMultiplier * readLengthMedian );
-
-    Json::Value mosaikLs(Json::objectValue);
-    mosaikLs[INCLUDE] = true;
-    mosaikLs[VALUE]   = fragLengthMedian;
-
-    Json::Value mosaikMhp(Json::objectValue);
-    mosaikMhp[INCLUDE] = true;
-    mosaikMhp[VALUE]   = m_settings.Mhp;
-
-    Json::Value mosaikMmp(Json::objectValue);
-    mosaikMmp[INCLUDE] = true;
-    mosaikMmp[VALUE]   = m_settings.Mmp;
-
-    Json::Value mosaikSt(Json::objectValue);
-    mosaikSt[INCLUDE] = true;
-    mosaikSt[VALUE]   = m_settings.SeqTech;
-
     Json::Value mosaikAlignerParameters(Json::objectValue);
-    mosaikAlignerParameters["-act"] = mosaikAct;
-    mosaikAlignerParameters["-bw"]  = mosaikBw;
-    mosaikAlignerParameters["-ls"]  = mosaikLs;
-    mosaikAlignerParameters["-mhp"] = mosaikMhp;
-    mosaikAlignerParameters["-mmp"] = mosaikMmp;
-    mosaikAlignerParameters["-st"]  = mosaikSt;
+    mosaikAlignerParameters["-act"] = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;
+    mosaikAlignerParameters["-bw"]  = ceil( m_settings.BwMultiplier * readLengthMedian );
+    mosaikAlignerParameters["-ls"]  = fragLengthMedian;
+    mosaikAlignerParameters["-mhp"] = m_settings.Mhp;
+    mosaikAlignerParameters["-mmp"] = m_settings.Mmp;
+    mosaikAlignerParameters["-st"]  = m_settings.SeqTech;
 
     Json::Value parameters(Json::objectValue);
     parameters["MosaikAligner"] = mosaikAlignerParameters;
@@ -433,7 +407,7 @@ bool Premo::writeOutput(void) {
     }
 
     // write "pretty-printed" JSON contents to file
-    Json::StyledStreamWriter writer;
+    Json::StyledStreamWriter writer("  ");
     writer.write(outFile, root);
 
     if ( m_settings.IsVerbose )

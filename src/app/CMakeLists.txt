@@ -25,7 +25,7 @@ add_executable( PremoApp
 
 # set Premo application properties
 set_target_properties( PremoApp PROPERTIES
-                       VERSION  0.0.1
+                       VERSION  0.1.0
                        OUTPUT_NAME "premo"
                      )
 # make version info available in application

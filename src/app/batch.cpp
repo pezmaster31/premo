@@ -12,8 +12,9 @@
 #include "fastqreader.h"
 #include "fastqwriter.h"
 #include "premo_settings.h"
+#include "stats.h"
 #include "bamtools/api/BamReader.h"
-
+#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -125,10 +126,8 @@ bool Batch::generateTempFastqFiles(void) {
 
         // build error string
         m_errorString = "premo ERROR: could not create the following temp FASTQ file(s):\n";
-        if ( !writer1.isOpen() )
-            m_errorString.append(m_generatedFastq1);
-        if ( !writer2.isOpen() )
-            m_errorString.append(m_generatedFastq2);
+        if ( !writer1.isOpen() ) m_errorString.append(m_generatedFastq1);
+        if ( !writer2.isOpen() ) m_errorString.append(m_generatedFastq2);
 
         // return failure
         return false;
@@ -217,6 +216,10 @@ bool Batch::parseAlignmentFile(void) {
     }
     reader.Close();
 
+    // remove extreme outliers
+    removeOutliers(m_result.FragmentLengths);
+    removeOutliers(m_result.ReadLengths);
+
     // if we get here, all should be OK
     return true;
 }
@@ -247,7 +250,7 @@ bool Batch::runMosaikAligner(void) {
 
     // setup MosaikAlign command line
     stringstream commandStream("");
-    commandStream << m_settings->MosaikPath << "MosaikAligner"   // (mosaikpath should already end in '/')
+    commandStream << m_settings->MosaikPath << "MosaikAligner"
                   << " -ia "    << m_settings->ReferenceFilename
                   << " -in "    << m_generatedReadArchive
                   << " -out "   << m_generatedBamStub
@@ -272,7 +275,7 @@ bool Batch::runMosaikBuild(void) {
 
     // setup MosaikBuild command line
     stringstream commandStream("");
-    commandStream << m_settings->MosaikPath << "MosaikBuild"   // (mosaikpath should already end in '/')
+    commandStream << m_settings->MosaikPath << "MosaikBuild"
                   << " -q "   << m_generatedFastq1
                   << " -q2 "  << m_generatedFastq2
                   << " -out " << m_generatedReadArchive
