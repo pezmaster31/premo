@@ -397,7 +397,6 @@ bool Premo::writeOutput(void) {
     mosaikAlignerParameters["-ls"]  = fragLengthMedian;
     mosaikAlignerParameters["-mhp"] = m_settings.Mhp;
     mosaikAlignerParameters["-mmp"] = m_settings.Mmp;
-    mosaikAlignerParameters["-st"]  = m_settings.SeqTech;
 
     Json::Value mosaikBuildParameters(Json::objectValue);
     mosaikBuildParameters["-mfl"] = static_cast<int>(fragLengthMedian);
