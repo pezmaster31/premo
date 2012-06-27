@@ -2,7 +2,7 @@
 // premo_settings.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 23 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Premo app settings
 // ***************************************************************************
@@ -31,6 +31,9 @@ const unsigned int BatchSize = 1000;
 // changes by less than this fraction after adding a new batch
 const double DeltaFragmentLength = 0.01;
 const double DeltaReadLength = 0.05;
+
+// hash size (see Mosaik docs for details)
+const unsigned int HashSize = 15;
 
 // maximum hash positions (see Mosaik docs for details)
 const unsigned int Mhp = 200;
@@ -68,6 +71,7 @@ struct PremoSettings {
     bool HasActIntercept;
     bool HasActSlope;
     bool HasBwMultiplier;
+    bool HasHashSize;
     bool HasMhp;
     bool HasMmp;
     bool HasSeqTech;
@@ -92,6 +96,7 @@ struct PremoSettings {
     unsigned int ActIntercept;
     double       ActSlope;
     double       BwMultiplier;
+    unsigned int HashSize;
     unsigned int Mhp;
     double       Mmp;
     std::string  SeqTech;
@@ -116,6 +121,7 @@ struct PremoSettings {
         , HasActIntercept(false)
         , HasActSlope(false)
         , HasBwMultiplier(false)
+        , HasHashSize(false)
         , HasMhp(false)
         , HasMmp(false)
         , HasSeqTech(false)
@@ -134,6 +140,7 @@ struct PremoSettings {
         , ActIntercept(Defaults::ActIntercept)
         , ActSlope(Defaults::ActSlope)
         , BwMultiplier(Defaults::BwMultiplier)
+        , HashSize(Defaults::HashSize)
         , Mhp(Defaults::Mhp)
         , Mmp(Defaults::Mmp)
         , SeqTech("")
@@ -158,6 +165,7 @@ struct PremoSettings {
         , HasActIntercept(other.HasActIntercept)
         , HasActSlope(other.HasActSlope)
         , HasBwMultiplier(other.HasBwMultiplier)
+        , HasHashSize(other.HasHashSize)
         , HasMhp(other.HasMhp)
         , HasMmp(other.HasMmp)
         , HasSeqTech(other.HasSeqTech)
@@ -176,6 +184,7 @@ struct PremoSettings {
         , ActIntercept(other.ActIntercept)
         , ActSlope(other.ActSlope)
         , BwMultiplier(other.BwMultiplier)
+        , HashSize(other.HashSize)
         , Mhp(other.Mhp)
         , Mmp(other.Mmp)
         , SeqTech(other.SeqTech)

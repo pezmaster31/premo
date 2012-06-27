@@ -285,6 +285,11 @@ bool Premo::validateSettings(void) {
         hasInvalid = true;
     }
 
+    if ( m_settings.HasHashSize && ( m_settings.HashSize < 4 || m_settings.HashSize > 32) ) {
+        invalid << endl << "-hs must be between [4-32]";
+        hasInvalid = true;
+    }
+
     if ( m_settings.HasDeltaFragmentLength && m_settings.DeltaFragmentLength <= 0.0 ) {
         invalid << endl << "\t-delta-fl must be a positive, non-zero value";
         hasInvalid = true;
@@ -366,6 +371,7 @@ bool Premo::writeOutput(void) {
     settings["batch size"]            = m_settings.BatchSize;
     settings["delta fragment length"] = m_settings.DeltaFragmentLength;
     settings["delta read length"]     = m_settings.DeltaReadLength;
+    settings["hash size"]             = m_settings.HashSize;
     settings["mhp"]                   = m_settings.Mhp;
     settings["mmp"]                   = m_settings.Mmp;
     settings["seq tech"]              = m_settings.SeqTech;
@@ -387,6 +393,7 @@ bool Premo::writeOutput(void) {
     Json::Value mosaikAlignerParameters(Json::objectValue);
     mosaikAlignerParameters["-act"] = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;
     mosaikAlignerParameters["-bw"]  = ceil( m_settings.BwMultiplier * readLengthMedian );
+    mosaikAlignerParameters["-hs"]  = m_settings.HashSize;
     mosaikAlignerParameters["-ls"]  = fragLengthMedian;
     mosaikAlignerParameters["-mhp"] = m_settings.Mhp;
     mosaikAlignerParameters["-mmp"] = m_settings.Mmp;

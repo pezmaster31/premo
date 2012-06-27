@@ -2,7 +2,7 @@
 // batch.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 24 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Premo batch
 // ***************************************************************************
@@ -260,6 +260,7 @@ bool Batch::runMosaikAligner(void) {
                   << " -out "   << m_generatedBamStub
                   << " -annpe " << m_settings->AnnPeFilename
                   << " -annse " << m_settings->AnnSeFilename
+                  << " -hs "    << m_settings->HashSize
                   << " -mhp "   << m_settings->Mhp
                   << " -mmp "   << m_settings->Mmp
                   << " -kd -pd ";

@@ -2,7 +2,7 @@
 // main.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 24 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main entry point for the Premo app.
 // ***************************************************************************
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
                        "-annse <file> "
                        "-fq1 <file> "
                        "-fq2 <file> "
-                       "-ref <file> "
+                       "-hs <hash size>"
                        "-jmp <file prefix> "
                        "-mosaik <dir> "
                        "-out <file> "
@@ -103,6 +103,7 @@ int main(int argc, char* argv[]) {
 
     const string act("alignment candidate threshold. Generated MosaikAligner -act parameter will be ((ActSlope * ReadLength) + ActIntercept)");
     const string bwm("banded Smith-Waterman multiplier. Generated MosaikAligner -bw parameter will be (BwMultiplier * Mmp * ReadLength)");
+    const string hs("Mosaik hash size. Used in premo batch runs, and included in generated parameter set");
     const string mhp("maximum hash positions. Used in premo batch runs, and included in generated parameter set");
     const string mmp("mismatch percent. Used in premo batch runs, and included in generated parameter set");
     const string st("sequencing technology: '454', 'helicos', 'illumina', 'illumina_long', 'sanger' or 'solid'. Required for premo batch runs, and included in generated parameter set");
@@ -110,9 +111,10 @@ int main(int argc, char* argv[]) {
     Options::AddValueOption("-act-intercept", "int",    act, "", settings.HasActIntercept, settings.ActIntercept, MosaikOpts, Defaults::ActIntercept);
     Options::AddValueOption("-act-slope",     "double", act, "", settings.HasActSlope,     settings.ActSlope,     MosaikOpts, Defaults::ActSlope);
     Options::AddValueOption("-bwm",           "int",    bwm, "", settings.HasBwMultiplier, settings.BwMultiplier, MosaikOpts, Defaults::BwMultiplier);
+    Options::AddValueOption("-hs",            "int",    hs,  "", settings.HasHashSize,     settings.HashSize,     MosaikOpts, Defaults::HashSize);
     Options::AddValueOption("-mhp",           "int",    mhp, "", settings.HasMhp,          settings.Mhp,          MosaikOpts, Defaults::Mhp);
     Options::AddValueOption("-mmp",           "double", mmp, "", settings.HasMmp,          settings.Mmp,          MosaikOpts, Defaults::Mmp);
-    Options::AddValueOption("-st",            "string", st,  "", settings.HasSeqTech,      settings.SeqTech,      MosaikOpts);
+    Options::AddValueOption("-st",            "string", st,  "", settings.HasSeqTech,      settings.SeqTech,      MosaikOpts  /* REQUIRED INPUT */);
 
     // -------------------------------------------------------
     // parse command line
