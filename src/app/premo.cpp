@@ -2,7 +2,7 @@
 // premo.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 24 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -392,8 +392,13 @@ bool Premo::writeOutput(void) {
     mosaikAlignerParameters["-mmp"] = m_settings.Mmp;
     mosaikAlignerParameters["-st"]  = m_settings.SeqTech;
 
+    Json::Value mosaikBuildParameters(Json::objectValue);
+    mosaikBuildParameters["-mfl"] = fragLengthMedian;
+    mosaikBuildParameters["-st"]  = m_settings.SeqTech;
+
     Json::Value parameters(Json::objectValue);
     parameters["MosaikAligner"] = mosaikAlignerParameters;
+    parameters["MosaikBuild"]   = mosaikBuildParameters;
 
     root["parameters"] = parameters;
 
