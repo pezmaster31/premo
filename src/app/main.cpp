@@ -45,7 +45,6 @@ int main(int argc, char* argv[]) {
                        "-annse <file> "
                        "-fq1 <file> "
                        "-fq2 <file> "
-                       "-hs <hash size>"
                        "-jmp <file prefix> "
                        "-mosaik <dir> "
                        "-out <file> "
