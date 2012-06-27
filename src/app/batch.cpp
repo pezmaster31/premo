@@ -112,7 +112,7 @@ string Batch::errorString(void) const {
     return m_errorString;
 }
 
-bool Batch::generateTempFastqFiles(void) {
+Batch::RunStatus Batch::generateTempFastqFiles(void) {
 
     // ------------------------------
     // open temp FASTQ output files
@@ -129,12 +129,22 @@ bool Batch::generateTempFastqFiles(void) {
     if ( !openedOk ) {
 
         // build error string
-        m_errorString = "premo ERROR: could not create the following temp FASTQ file(s):\n";
-        if ( !writer1.isOpen() ) m_errorString.append(m_generatedFastq1);
-        if ( !writer2.isOpen() ) m_errorString.append(m_generatedFastq2);
+        stringstream s("");
+        s << "could not create the following temp FASTQ file(s):";
+        if ( !writer1.isOpen() ) {
+            s << endl
+              << m_generatedFastq1 << endl
+              << "\tbecause: " << writer1.errorString();
+        }
+        if ( !writer2.isOpen() ) {
+            s << endl
+              << m_generatedFastq2 << endl
+              << "\tbecause: " << writer2.errorString();
+        }
+        m_errorString = s.str();
 
         // return failure
-        return false;
+        return Batch::Error;
     }
 
     // -----------------------------------------------------------
@@ -147,28 +157,69 @@ bool Batch::generateTempFastqFiles(void) {
     // iterate over requested number of entries
     for ( size_t i = 0; i < m_settings->BatchSize; ++i ) {
 
-        // read from input FASTQ files
-        if ( !m_reader1->readNext(&f1) ) {
-            m_errorString = "premo ERROR: could not read from input FASTQ file: ";
-            m_errorString.append(m_reader1->filename());
-            return false;
-        }
-        if ( !m_reader2->readNext(&f2) ) {
-            m_errorString = "premo ERROR: could not read from input FASTQ file: ";
-            m_errorString.append(m_reader2->filename());
-            return false;
+        // attempt to read from FASTQ
+        const bool read1Ok = m_reader1->readNext(&f1);
+        const bool read2Ok = m_reader2->readNext(&f2);
+
+        // if both read OK
+        if ( read1Ok && read2Ok ) {
+
+            // attempt to write to FASTQ
+            const bool write1Ok = writer1.write(&f1);
+            const bool write2Ok = writer2.write(&f2);
+
+            // handle any write errors
+            if ( !write1Ok || !write2Ok ) {
+
+                // build error string
+                stringstream s("");
+                s << "could not write to temp FASTQ file(s):";
+                if ( !write1Ok ) {
+                    s << endl
+                      << writer1.filename() << endl
+                      << "\tbecause: " << writer1.errorString();
+                }
+                if ( !write2Ok ) {
+                    s << endl
+                      << writer2.filename() << endl
+                      << "\tbecause: " << writer2.errorString();
+                }
+                m_errorString = s.str();
+
+                // return failure
+                return Batch::Error;
+            }
         }
 
-        // write to temp FASTQ files
-        if ( !writer1.write(&f1) ) {
-            m_errorString = "premo ERROR: could not write to temp FASTQ file: ";
-            m_errorString.append(writer1.filename());
-            return false;
-        }
-        if ( !writer2.write(&f2) ) {
-            m_errorString = "premo ERROR: could not write to temp FASTQ file: ";
-            m_errorString.append(writer2.filename());
-            return false;
+        // handle read errors
+        else {
+
+            // handle EOF or empty file
+            if ( m_reader1->isEOF() ) {
+
+                if ( i != 0 ) {
+                    assert(m_reader2->isEOF());
+                    return Batch::HitEOF;
+                } else
+                    return Batch::NoData;
+            }
+
+            // for any other errors,
+            // build error string
+            stringstream s("");
+            s << "could not read from input FASTQ file(s): ";
+            if ( !read1Ok ) {
+                s << endl
+                  << m_reader1->filename() << endl
+                  << "\tbecause: " << m_reader1->errorString();
+            }
+            if ( !read2Ok ) {
+                s << endl
+                  << m_reader2->filename() << endl
+                  << "\tbecause: " << m_reader2->errorString();
+            }
+            m_errorString = s.str();
+            return Batch::Error;
         }
     }
 
@@ -176,18 +227,18 @@ bool Batch::generateTempFastqFiles(void) {
     // cleanup & return success
     writer1.close();
     writer2.close();
-    return true;
+    return Batch::Normal;
 }
 
-bool Batch::parseAlignmentFile(void) {
+Batch::RunStatus Batch::parseAlignmentFile(void) {
 
     // open reader on new BAM alignment file
     BamTools::BamReader reader;
     if ( !reader.Open(m_generatedBam) ) {
-        m_errorString = "premo ERROR: could not open generated BAM file: ";
+        m_errorString = "could not open generated BAM file: ";
         m_errorString.append(m_generatedBam);
         m_errorString.append(" to parse alignments");
-        return false;
+        return Batch::Error;
     }
 
     // set up data containers
@@ -225,32 +276,33 @@ bool Batch::parseAlignmentFile(void) {
     removeOutliers(m_result.ReadLengths);
 
     // if we get here, all should be OK
-    return true;
+    return Batch::Normal;
 }
 
 Result Batch::result(void) const {
     return m_result;
 }
 
-bool Batch::run(void) {
+Batch::RunStatus Batch::run(void) {
+
+    Batch::RunStatus status;
 
     // generate temp files
-    if ( !generateTempFastqFiles() )
-        return false;
+    status = generateTempFastqFiles();
+    if ( (status != Batch::Normal) && (status != Batch::HitEOF) ) // EOF is ok, we still should have data to align
+        return status;
 
     // run mosaik
-    if ( !runMosaikPipeline() )
-        return false;
+    status = runMosaikPipeline();
+    if ( status != Batch::Normal )
+        return status;
 
-    // parse BAM for counts
-    if ( !parseAlignmentFile() )
-        return false;
-
-    // if we get here, all should be OK
-    return true;
+    // parse BAM for counts & return final status
+    status = parseAlignmentFile();
+    return status;
 }
 
-bool Batch::runMosaikAligner(void) {
+Batch::RunStatus Batch::runMosaikAligner(void) {
 
     // setup MosaikAlign command line
     stringstream commandStream("");
@@ -273,10 +325,10 @@ bool Batch::runMosaikAligner(void) {
     // run MosaikAlign
     const string command = commandStream.str();
     const int result = system(command.c_str());
-    return ( result == 0 );
+    return ( result == 0 ? Batch::Normal : Batch::Error );
 }
 
-bool Batch::runMosaikBuild(void) {
+Batch::RunStatus Batch::runMosaikBuild(void) {
 
     // setup MosaikBuild command line
     stringstream commandStream("");
@@ -291,19 +343,19 @@ bool Batch::runMosaikBuild(void) {
     // run MosaikBuild
     const string command = commandStream.str();
     const int result = system(command.c_str());
-    return ( result == 0 );
+    return ( result == 0 ? Batch::Normal : Batch::Error );
 }
 
-bool Batch::runMosaikPipeline(void) {
+Batch::RunStatus Batch::runMosaikPipeline(void) {
+
+    Batch::RunStatus status;
 
     // build mosaik archives for new batch FASTQ files
-    if ( !runMosaikBuild() )
-        return false;
+    status = runMosaikBuild();
+    if ( status != Batch::Normal )
+        return status;
 
-    // align batch
-    if ( !runMosaikAligner() )
-        return false;
-
-    // if we get here, all should be OK
-    return true;
+    // align batch & return status
+    status = runMosaikAligner();
+    return status;
 }

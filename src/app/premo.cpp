@@ -13,6 +13,7 @@
 #include "stats.h"
 #include "jsoncpp/json_value.h"
 #include "jsoncpp/json_writer.h"
+#include <cassert>
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
@@ -127,17 +128,27 @@ bool Premo::openInputFiles(void) {
     if ( !openedOk ) {
 
         // build error string
-        m_errorString = "premo ERROR: could not open the following input FASTQ file(s):\n";
-        if ( !m_reader1.isOpen() ) m_errorString.append(m_settings.FastqFilename1);
-        if ( !m_reader2.isOpen() ) m_errorString.append(m_settings.FastqFilename2);
+        stringstream s("");
+        s << "could not open input FASTQ file(s):";
+        if ( !m_reader1.isOpen() ) {
+            s << endl
+              << m_settings.FastqFilename1 << endl
+              << "\tbecause: " << m_reader1.errorString();
+        }
+        if ( !m_reader2.isOpen() ) {
+            s << endl
+              << m_settings.FastqFilename2 << endl
+              << "\tbecause: " << m_reader2.errorString();
+        }
+        m_errorString = s.str();
+
         // return failure
         return false;
     }
 
+    // otherwise, opened OK
     if ( m_settings.IsVerbose )
         cerr << "input FASTQ files opened OK" << endl;
-
-    // otherwise, opened OK
     return true;
 }
 
@@ -160,16 +171,23 @@ bool Premo::run(void) {
 
         // run batch
         Batch batch(batchNumber, &m_settings, &m_reader1, &m_reader2);
-        if ( !batch.run() ) {
+        const Batch::RunStatus status = batch.run();
 
-            // if batch failed, set error & return failure
-            stringstream s("premo ERROR: batch ");
-            s << batchNumber;
-            s << " failed - " << endl;
-            s << batch.errorString();
+        // if we used up entire input on previous batches, that's OK...
+        // but we do need to stop trying batches (and no result is available from this one)
+        if ( status == Batch::NoData && batchNumber != 0 )
+            break;
+
+        // if batch failed, set error & return failure
+        else if ( status == Batch::Error ) {
+
+            stringstream s("");
+            s << "batch " << batchNumber << " failed - " << endl
+              << batch.errorString();
             m_errorString = s.str();
             return false;
         }
+        assert( (status == Batch::Normal) || (status == Batch::HitEOF) );
 
         // store batch results
         const Result result = batch.result();
@@ -182,8 +200,14 @@ bool Premo::run(void) {
         append(m_currentResult.FragmentLengths, result.FragmentLengths);
         append(m_currentResult.ReadLengths,     result.ReadLengths);
 
-        // if not first batch, check to see if we're done
-        if ( batchNumber > 0 )
+        // if we hit EOF on the input, then we're done
+        // (we can't process any more batches)
+        if ( status == Batch::HitEOF )
+            m_isFinished = true;
+
+        // otherwise, we finished normally - check to see if we're done
+        // (unless this was the first batch)
+        else if ( batchNumber > 0 )
             m_isFinished = checkFinished(previousResult, m_currentResult, m_settings);
 
         // increment our batch counter
@@ -424,10 +448,9 @@ bool Premo::writeOutput(void) {
     Json::StyledStreamWriter writer("  ");
     writer.write(outFile, root);
 
-    if ( m_settings.IsVerbose )
-        cerr << "results written OK" << endl;
-
     // clean up & return success
     outFile.close();
+    if ( m_settings.IsVerbose )
+        cerr << "results written OK" << endl;
     return true;
 }

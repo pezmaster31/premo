@@ -2,7 +2,7 @@
 // batch.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 24 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // Premo batch
 // ***************************************************************************
@@ -18,6 +18,14 @@ class PremoSettings;
 
 class Batch {
 
+    public:
+        enum RunStatus { Normal = 0  // batch processed normally, result available
+                       , HitEOF      // batch hit EOF before processing settings.BatchSize reads,
+                                     // result available but any further batch runs will return NoData
+                       , NoData      // empty file (or starting from EOF) - NO result available
+                       , Error       // any other error case - NO result available
+                       };
+
     // ctor & dtor
     public:
         Batch(const int batchNumber,
@@ -30,15 +38,15 @@ class Batch {
     public:
         std::string errorString(void) const;
         Result result(void) const;
-        bool run(void);
+        RunStatus run(void);
 
     // internal methods
     private:
-        bool generateTempFastqFiles(void);
-        bool parseAlignmentFile(void);
-        bool runMosaikAligner(void);
-        bool runMosaikBuild(void);
-        bool runMosaikPipeline(void);
+        RunStatus generateTempFastqFiles(void);
+        RunStatus parseAlignmentFile(void);
+        RunStatus runMosaikAligner(void);
+        RunStatus runMosaikBuild(void);
+        RunStatus runMosaikPipeline(void);
 
     // data members
     private:

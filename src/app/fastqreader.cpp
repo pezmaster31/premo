@@ -2,7 +2,7 @@
 // fastqreader.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 19 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file reader
 // ***************************************************************************
@@ -89,6 +89,13 @@ string FastqReader::filename(void) const {
     return m_filename;
 }
 
+bool FastqReader::isEOF(void) const {
+    if ( isOpen() )
+        return static_cast<bool>( STREAM_EOF );
+    else
+        return false;
+}
+
 bool FastqReader::isOpen(void) const {
     return ( STREAM != 0 );
 }
@@ -113,8 +120,12 @@ bool FastqReader::open(const string& filename) {
 
     const uint16_t GZIP_MAGIC_NUMBER = 0x8b1f;
     uint16_t magicNumber = 0;
-    const size_t numBytes = fread((char*)&magicNumber, sizeof(magicNumber), 1, checkStream);
-    (void)numBytes;
+    const size_t numElements = fread((char*)&magicNumber, sizeof(magicNumber), 1, checkStream);
+    if ( numElements != 1 ) {
+        m_errorString = "could not read from input FASTQ file: ";
+        m_errorString.append(filename);
+        return false;
+    }
     fclose(checkStream);
 
     m_isCompressed = ( magicNumber == GZIP_MAGIC_NUMBER );

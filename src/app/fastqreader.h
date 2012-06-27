@@ -2,7 +2,7 @@
 // fastqreader.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 19 June 2012 (DB)
+// Last modified: 27 June 2012 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file reader
 // ***************************************************************************
@@ -27,6 +27,7 @@ class FastqReader {
         void close(void);
         std::string errorString(void) const;
         std::string filename(void) const;
+        bool isEOF(void) const;              // N.B. - returns true if unopened, otherwise true if EOF
         bool isOpen(void) const;
         bool open(const std::string& filename);
         bool readNext(Fastq* entry);
