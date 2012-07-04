@@ -2,7 +2,7 @@
 // premo.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 27 June 2012 (DB)
+// Last modified: 3 July 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -414,9 +414,14 @@ bool Premo::writeOutput(void) {
     const double fragLengthMedian = calculateMedian(fragmentLengths);
     const double readLengthMedian = calculateMedian(readLengths);
 
+    // calculate bandwidth parameter, rounding down to nearest odd integer
+    unsigned int bandwidth = ceil( m_settings.BwMultiplier * readLengthMedian );
+    if ( bandwidth & 1 == 0  )
+        bandwidth -= 1;
+
     Json::Value mosaikAlignerParameters(Json::objectValue);
     mosaikAlignerParameters["-act"] = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;
-    mosaikAlignerParameters["-bw"]  = ceil( m_settings.BwMultiplier * readLengthMedian );
+    mosaikAlignerParameters["-bw"]  = bandwidth;
     mosaikAlignerParameters["-hs"]  = m_settings.HashSize;
     mosaikAlignerParameters["-ls"]  = fragLengthMedian;
     mosaikAlignerParameters["-mhp"] = m_settings.Mhp;
