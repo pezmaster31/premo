@@ -2,7 +2,7 @@
 // premo.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 3 July 2012 (DB)
+// Last modified: 4 July 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -13,9 +13,19 @@
 #include "stats.h"
 #include "jsoncpp/json_value.h"
 #include "jsoncpp/json_writer.h"
+
+#ifdef WIN32
+#  include <windows.h>
+#else
+#  include <dirent.h>
+#  include <sys/stat.h>
+#  include <sys/types.h>
+#endif // WIN32
+
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -100,6 +110,83 @@ void append(std::vector<T>& dest, const std::vector<T>& source) {
 static inline
 bool endsWith(const string& str, const string& query) {
     return ( str.find_last_of(query) == (str.length() - query.length()) );
+}
+
+static
+bool dirExists(const char* directory) {
+
+    // Borrowed from Mosaik source
+    //https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
+
+    bool foundDirectory = false;
+
+#ifdef WIN32
+
+    // remove
+    int dirLen = (int)strlen(directory);
+
+    // convert the directory from multi-byte to wide characters
+    int numWideChar = MultiByteToWideChar(CP_ACP, 0, directory, dirLen + 1, NULL, 0);
+    LPWSTR wDirectory = new WCHAR[numWideChar];
+    MultiByteToWideChar(CP_ACP, 0, directory, dirLen + 1, wDirectory, numWideChar);
+
+    // check the directory
+    DWORD dwAttr = GetFileAttributes(wDirectory);
+    if( dwAttr == FILE_ATTRIBUTE_DIRECTORY )
+        foundDirectory = true;
+
+    // clean up
+    delete[] wDirectory;
+
+#else
+
+    struct stat st;
+    if ( stat(directory, &st) == 0 ) {
+        DIR* pDirectory = opendir(directory);
+        if ( pDirectory != NULL ) {
+            foundDirectory = true;
+            closedir( pDirectory );
+        }
+    }
+
+#endif
+
+    return foundDirectory;
+}
+
+static
+bool createDirectory(const char* directory) {
+
+    // Borrowed from Mosaik source
+    //https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
+
+    // return true if the directory already exists
+    if ( dirExists(directory) )
+        return true;
+
+    bool directoryCreated = false;
+
+#ifdef WIN32
+
+    // convert the directory from multi-byte to wide characters
+    int numWideChar = MultiByteToWideChar(CP_ACP, 0, directory, (int)strlen(directory) + 1, NULL, 0);
+    LPWSTR wDirectory = new WCHAR[numWideChar];
+    MultiByteToWideChar(CP_ACP, 0, directory, (int)strlen(directory) + 1, wDirectory, numWideChar);
+
+    // call the actual CreateDirectory() method
+    // N.B. - Make sure that you have a trailing slash before calling this function
+    directoryCreated = ( CreateDirectory(wDirectory, NULL) != 0 );
+
+    // cleanup
+    delete[] wDirectory;
+
+#else
+
+    directoryCreated = ( mkdir(directory, S_IRWXU | S_IRGRP | S_IXGRP) == 0 );
+
+#endif
+
+    return directoryCreated;
 }
 
 // ----------------------
@@ -334,6 +421,16 @@ bool Premo::validateSettings(void) {
         hasInvalid = true;
     }
 
+    if ( m_settings.HasScratchPath && !m_settings.ScratchPath.empty() ) {
+
+        // create scratch directory if it doesnt exist
+        if ( !createDirectory(m_settings.ScratchPath.c_str()) ) {
+            invalid << endl << "\tcould not create the directory specified by -tmp. Be sure you have mkdir permissions";
+            hasInvalid = true;
+        }
+    }
+
+
     // ---------------------------------------------------------------
     // set error string if anything missing/invalid
     // ---------------------------------------------------------------
@@ -416,7 +513,7 @@ bool Premo::writeOutput(void) {
 
     // calculate bandwidth parameter, rounding down to nearest odd integer
     unsigned int bandwidth = ceil( m_settings.BwMultiplier * readLengthMedian );
-    if ( bandwidth & 1 == 0  )
+    if ( (bandwidth & 1) == 0  )
         bandwidth -= 1;
 
     Json::Value mosaikAlignerParameters(Json::objectValue);
