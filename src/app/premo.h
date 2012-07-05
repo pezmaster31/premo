@@ -2,7 +2,7 @@
 // premo.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 27 June 2012 (DB)
+// Last modified: 4 July 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
@@ -44,6 +44,8 @@ class Premo {
 
         std::vector<Result> m_batchResults;
         Result m_currentResult;
+
+        bool m_createdScratchDirectory;
 
         std::string m_errorString;
 };

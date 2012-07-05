@@ -11,16 +11,13 @@
 #include "options.h"
 #include "premo.h"
 #include "stats.h"
+
 #include "jsoncpp/json_value.h"
 #include "jsoncpp/json_writer.h"
 
-#ifdef WIN32
-#  include <windows.h>
-#else
-#  include <dirent.h>
-#  include <sys/stat.h>
-#  include <sys/types.h>
-#endif // WIN32
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <cassert>
 #include <cmath>
@@ -115,30 +112,10 @@ bool endsWith(const string& str, const string& query) {
 static
 bool dirExists(const char* directory) {
 
-    // Borrowed from Mosaik source
-    //https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
+    // Borrowed from Mosaik source (w/o Windows compatibility)
+    // https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
 
     bool foundDirectory = false;
-
-#ifdef WIN32
-
-    // remove
-    int dirLen = (int)strlen(directory);
-
-    // convert the directory from multi-byte to wide characters
-    int numWideChar = MultiByteToWideChar(CP_ACP, 0, directory, dirLen + 1, NULL, 0);
-    LPWSTR wDirectory = new WCHAR[numWideChar];
-    MultiByteToWideChar(CP_ACP, 0, directory, dirLen + 1, wDirectory, numWideChar);
-
-    // check the directory
-    DWORD dwAttr = GetFileAttributes(wDirectory);
-    if( dwAttr == FILE_ATTRIBUTE_DIRECTORY )
-        foundDirectory = true;
-
-    // clean up
-    delete[] wDirectory;
-
-#else
 
     struct stat st;
     if ( stat(directory, &st) == 0 ) {
@@ -149,44 +126,54 @@ bool dirExists(const char* directory) {
         }
     }
 
-#endif
-
     return foundDirectory;
 }
 
 static
 bool createDirectory(const char* directory) {
 
-    // Borrowed from Mosaik source
-    //https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
+    // Borrowed from Mosaik source (w/o Windows compatibility)
+    // https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
 
-    // return true if the directory already exists
+    // return success if directory already exists
     if ( dirExists(directory) )
         return true;
 
-    bool directoryCreated = false;
+    // otherwise return success/failure of creatin directory
+    return ( mkdir(directory, S_IRWXU | S_IRGRP | S_IXGRP) == 0 );
+}
 
-#ifdef WIN32
+static
+void removeDirectory(string directory) {
 
-    // convert the directory from multi-byte to wide characters
-    int numWideChar = MultiByteToWideChar(CP_ACP, 0, directory, (int)strlen(directory) + 1, NULL, 0);
-    LPWSTR wDirectory = new WCHAR[numWideChar];
-    MultiByteToWideChar(CP_ACP, 0, directory, (int)strlen(directory) + 1, wDirectory, numWideChar);
+    // Borrowed from Mosaik source (w/o Windows compatibility)
+    // https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
 
-    // call the actual CreateDirectory() method
-    // N.B. - Make sure that you have a trailing slash before calling this function
-    directoryCreated = ( CreateDirectory(wDirectory, NULL) != 0 );
+    // skip out if directory doesn't exist
+    if( !dirExists( directory.c_str() ) )
+        return;
 
-    // cleanup
-    delete[] wDirectory;
+    // open directory
+    DIR* pdir = NULL;
+    pdir = opendir( directory.c_str() );
+    if ( pdir == NULL )
+        return;
 
-#else
+    string file;
+    struct dirent* pent = NULL;
 
-    directoryCreated = ( mkdir(directory, S_IRWXU | S_IRGRP | S_IXGRP) == 0 );
+    // iterate over directory contents
+    while ( (pent = readdir(pdir)) != NULL ) {
+        if ( pent == NULL ) return;
 
-#endif
+        // get full path to file & remove it
+        file = directory + pent->d_name;
+        remove(file.c_str());
+    }
 
-    return directoryCreated;
+    // close the directory & remove it
+    closedir(pdir);
+    rmdir(directory.c_str());
 }
 
 // ----------------------
@@ -196,9 +183,21 @@ bool createDirectory(const char* directory) {
 Premo::Premo(const PremoSettings& settings)
     : m_settings(settings)
     , m_isFinished(false)
+    , m_createdScratchDirectory(false)
 { }
 
-Premo::~Premo(void) { }
+Premo::~Premo(void) {
+
+    // if user doesn't want to keep any generated files &
+    // we have a scratch directory we created within this run
+    if ( !m_settings.IsKeepGeneratedFiles &&
+         !m_settings.ScratchPath.empty() &&
+         m_createdScratchDirectory )
+    {
+        // remove the generated scratch directory
+        removeDirectory(m_settings.ScratchPath);
+    }
+}
 
 string Premo::errorString(void) const {
     return m_errorString;
@@ -423,13 +422,19 @@ bool Premo::validateSettings(void) {
 
     if ( m_settings.HasScratchPath && !m_settings.ScratchPath.empty() ) {
 
-        // create scratch directory if it doesnt exist
-        if ( !createDirectory(m_settings.ScratchPath.c_str()) ) {
-            invalid << endl << "\tcould not create the directory specified by -tmp. Be sure you have mkdir permissions";
-            hasInvalid = true;
+        // see if directory already exists
+        if ( dirExists(m_settings.ScratchPath.c_str()) )
+            m_createdScratchDirectory = false;
+
+        // if not try to create it
+        else {
+            m_createdScratchDirectory = createDirectory(m_settings.ScratchPath.c_str());
+            if ( !m_createdScratchDirectory ) {
+                invalid << endl << "\tcould not create the directory specified by -tmp. Be sure you have mkdir permissions";
+                hasInvalid = true;
+            }
         }
     }
-
 
     // ---------------------------------------------------------------
     // set error string if anything missing/invalid
