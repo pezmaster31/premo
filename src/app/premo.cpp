@@ -537,7 +537,7 @@ bool Premo::writeOutput(void) {
     // store top-level results
     // ------------------------------
 
-    root["overall result"] = resultToJson(m_currentResult, m_settings.IsSingleEndMode;
+    root["overall result"] = resultToJson(m_currentResult, m_settings.IsSingleEndMode);
 
     // -------------------------
     // store per-batch results
