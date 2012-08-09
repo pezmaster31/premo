@@ -294,8 +294,15 @@ bool Premo::run(void) {
 
         // if we used up entire input on previous batches, that's OK...
         // but we do need to stop trying batches (and no result is available from this one)
-        if ( status == Batch::NoData && batchNumber != 0 )
+        if ( status == Batch::NoData && batchNumber != 0 ) {
+
+            // clean up
+            delete batch;
+            batch = 0;
+
+            // break out of batch loop
             break;
+        }
 
         // if batch failed, set error & return failure
         else if ( status == Batch::Error ) {
