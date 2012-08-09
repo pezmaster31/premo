@@ -2,7 +2,7 @@
 // premo_settings.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 27 June 2012 (DB)
+// Last modified: 8 August 2012 (DB)
 // ---------------------------------------------------------------------------
 // Premo app settings
 // ***************************************************************************
@@ -66,6 +66,7 @@ struct PremoSettings {
     bool HasBatchSize;
     bool HasDeltaReadLength;
     bool HasDeltaFragmentLength;
+    bool IsSingleEndMode;
 
     // mosaik flags
     bool HasActIntercept;
@@ -118,6 +119,7 @@ struct PremoSettings {
         , HasBatchSize(false)
         , HasDeltaReadLength(false)
         , HasDeltaFragmentLength(false)
+        , IsSingleEndMode(false)
         , HasActIntercept(false)
         , HasActSlope(false)
         , HasBwMultiplier(false)
@@ -162,6 +164,7 @@ struct PremoSettings {
         , HasBatchSize(other.HasBatchSize)
         , HasDeltaReadLength(other.HasDeltaReadLength)
         , HasDeltaFragmentLength(other.HasDeltaFragmentLength)
+        , IsSingleEndMode(other.IsSingleEndMode)
         , HasActIntercept(other.HasActIntercept)
         , HasActSlope(other.HasActSlope)
         , HasBwMultiplier(other.HasBwMultiplier)

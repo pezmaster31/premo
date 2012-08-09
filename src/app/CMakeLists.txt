@@ -20,12 +20,14 @@ add_executable( PremoApp
                 fastqwriter.cpp
                 main.cpp
                 options.cpp
+                pebatch.cpp
                 premo.cpp
+                sebatch.cpp
               )
 
 # set Premo application properties
 set_target_properties( PremoApp PROPERTIES
-                       VERSION  0.1.0
+                       VERSION  0.2.0
                        OUTPUT_NAME "premo"
                      )
 # make version info available in application

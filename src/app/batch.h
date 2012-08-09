@@ -2,9 +2,9 @@
 // batch.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 27 June 2012 (DB)
+// Last modified: 8 August 2012 (DB)
 // ---------------------------------------------------------------------------
-// Premo batch
+// Premo batch interface
 // ***************************************************************************
 
 #ifndef BATCH_H
@@ -12,12 +12,11 @@
 
 #include "result.h"
 #include <string>
-#include <vector>
-class FastqReader;
 class PremoSettings;
 
 class Batch {
 
+    // enums
     public:
         enum RunStatus { Normal = 0  // batch processed normally, result available
                        , HitEOF      // batch hit EOF before processing settings.BatchSize reads,
@@ -27,45 +26,22 @@ class Batch {
                        };
 
     // ctor & dtor
+    protected:
+        Batch(PremoSettings* settings);
     public:
-        Batch(const int batchNumber,
-              PremoSettings* settings,
-              FastqReader* reader1,
-              FastqReader* reader2);
-        ~Batch(void);
+        virtual ~Batch(void);
 
     // Batch interface
     public:
-        std::string errorString(void) const;
-        Result result(void) const;
-        RunStatus run(void);
+        virtual std::string errorString(void) const;
+        virtual Result result(void) const;
+        virtual Batch::RunStatus run(void) =0;        // implementation depends on SE/PE mode
 
-    // internal methods
-    private:
-        RunStatus generateTempFastqFiles(void);
-        RunStatus parseAlignmentFile(void);
-        RunStatus runMosaikAligner(void);
-        RunStatus runMosaikBuild(void);
-        RunStatus runMosaikPipeline(void);
+    // data members (accessible to subclasses)
+    protected:
 
-    // data members
-    private:
-
-        // copies from main Premo app, not owned
+        // copied from main Premo app, not owned
         PremoSettings* m_settings;
-        FastqReader*   m_reader1;
-        FastqReader*   m_reader2;
-
-        // store all possible generated filenames, for proper cleanup
-        std::string m_generatedFastq1;
-        std::string m_generatedFastq2;
-        std::string m_generatedReadArchive;
-        std::string m_generatedBamStub;
-        std::string m_generatedBam;
-        std::string m_generatedMosaikLog;
-        std::string m_generatedMultipleBam;
-        std::string m_generatedSpecialBam;
-        std::string m_generatedStatFile;
 
         // our main result
         Result m_result;

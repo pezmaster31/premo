@@ -2,14 +2,17 @@
 // premo.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 4 July 2012 (DB)
+// Last modified: 9 August 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main Premo workhorse
 // ***************************************************************************
 
+#include "premo.h"
+
 #include "batch.h"
 #include "options.h"
-#include "premo.h"
+#include "pebatch.h"
+#include "sebatch.h"
 #include "stats.h"
 
 #include "jsoncpp/json_value.h"
@@ -54,10 +57,17 @@ Json::Value containerStats(const vector<int>& container) {
 }
 
 static
-Json::Value resultToJson(const Result& result) {
+Json::Value resultToJson(const Result& result, const bool isSingleEndMode) {
+
     Json::Value json(Json::objectValue);
-    json["fragment length"] = containerStats(result.FragmentLengths);
-    json["read length"]     = containerStats(result.ReadLengths);
+
+    // include fragment length results if PE mode
+    if ( !isSingleEndMode )
+        json["fragment length"] = containerStats(result.FragmentLengths);
+
+    // always include read length results
+    json["read length"] = containerStats(result.ReadLengths);
+
     return json;
 }
 
@@ -91,12 +101,26 @@ bool checkFinished(const Result& previousResult,
                    const Result& currentResult,
                    const PremoSettings& settings)
 {
-    return isConverged(previousResult.FragmentLengths,
-                       currentResult.FragmentLengths,
-                       settings.DeltaFragmentLength)  &&
-           isConverged(previousResult.ReadLengths,
-                       currentResult.ReadLengths,
-                       settings.DeltaReadLength);
+    // SE mode
+    if ( settings.IsSingleEndMode ) {
+
+        // only check for read length convergence
+        return isConverged(previousResult.ReadLengths,
+                           currentResult.ReadLengths,
+                           settings.DeltaReadLength);
+    }
+
+    // PE mode
+    else {
+
+        // check for both read length & fragment length convergence
+        return isConverged(previousResult.FragmentLengths,
+                           currentResult.FragmentLengths,
+                           settings.DeltaFragmentLength)  &&
+               isConverged(previousResult.ReadLengths,
+                           currentResult.ReadLengths,
+                           settings.DeltaReadLength);
+    }
 }
 
 template<typename T>
@@ -132,7 +156,7 @@ bool dirExists(const char* directory) {
 static
 bool createDirectory(const char* directory) {
 
-    // Borrowed from Mosaik source (w/o Windows compatibility)
+    // Borrowed from Mosaik source (** w/o Windows compatibility **)
     // https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
 
     // return success if directory already exists
@@ -146,7 +170,7 @@ bool createDirectory(const char* directory) {
 static
 void removeDirectory(string directory) {
 
-    // Borrowed from Mosaik source (w/o Windows compatibility)
+    // Borrowed from Mosaik source (** w/o Windows compatibility **)
     // https://github.com/wanpinglee/MOSAIK/blob/master/src/CommonSource/Utilities/FileUtilities.cpp
 
     // skip out if directory doesn't exist
@@ -208,7 +232,8 @@ bool Premo::openInputFiles(void) {
     // open FASTQ input files for reading
     bool openedOk = true;
     openedOk &= m_reader1.open(m_settings.FastqFilename1);
-    openedOk &= m_reader2.open(m_settings.FastqFilename2);
+    if ( !m_settings.IsSingleEndMode )
+        openedOk &= m_reader2.open(m_settings.FastqFilename2);
 
     // check for failures
     if ( !openedOk ) {
@@ -216,16 +241,19 @@ bool Premo::openInputFiles(void) {
         // build error string
         stringstream s("");
         s << "could not open input FASTQ file(s):";
+
         if ( !m_reader1.isOpen() ) {
             s << endl
               << m_settings.FastqFilename1 << endl
               << "\tbecause: " << m_reader1.errorString();
         }
-        if ( !m_reader2.isOpen() ) {
+
+        if ( !m_reader2.isOpen() && !m_settings.IsSingleEndMode ) {
             s << endl
               << m_settings.FastqFilename2 << endl
               << "\tbecause: " << m_reader2.errorString();
         }
+
         m_errorString = s.str();
 
         // return failure
@@ -234,7 +262,7 @@ bool Premo::openInputFiles(void) {
 
     // otherwise, opened OK
     if ( m_settings.IsVerbose )
-        cerr << "input FASTQ files opened OK" << endl;
+        cerr << "input FASTQ file(s) opened OK" << endl;
     return true;
 }
 
@@ -256,8 +284,13 @@ bool Premo::run(void) {
             cerr << "running batch: " << batchNumber << endl;
 
         // run batch
-        Batch batch(batchNumber, &m_settings, &m_reader1, &m_reader2);
-        const Batch::RunStatus status = batch.run();
+        Batch* batch(0);
+        if ( m_settings.IsSingleEndMode )
+            batch = new SingleEndBatch(&m_reader1, &m_settings);
+        else
+            batch = new PairedEndBatch(batchNumber, &m_reader1, &m_reader2, &m_settings);
+
+        const Batch::RunStatus status = batch->run();
 
         // if we used up entire input on previous batches, that's OK...
         // but we do need to stop trying batches (and no result is available from this one)
@@ -267,24 +300,32 @@ bool Premo::run(void) {
         // if batch failed, set error & return failure
         else if ( status == Batch::Error ) {
 
+            // set error string
             stringstream s("");
             s << "batch " << batchNumber << " failed - " << endl
-              << batch.errorString();
+              << batch->errorString();
             m_errorString = s.str();
+
+            // clean up
+            delete batch;
+            batch = 0;
+
+            // return failure
             return false;
         }
         assert( (status == Batch::Normal) || (status == Batch::HitEOF) );
 
         // store batch results
-        const Result result = batch.result();
+        const Result result = batch->result();
         m_batchResults.push_back( result );
 
         // store previous result before adding batch data to "current" result
         const Result previousResult = m_currentResult;
 
         // add batch's data to current, overall result
-        append(m_currentResult.FragmentLengths, result.FragmentLengths);
-        append(m_currentResult.ReadLengths,     result.ReadLengths);
+        append(m_currentResult.ReadLengths, result.ReadLengths);
+        if ( !m_settings.IsSingleEndMode )
+            append(m_currentResult.FragmentLengths, result.FragmentLengths);
 
         // if we hit EOF on the input, then we're done
         // (we can't process any more batches)
@@ -298,6 +339,10 @@ bool Premo::run(void) {
 
         // increment our batch counter
         ++batchNumber;
+
+        // clean up
+        delete batch;
+        batch = 0;
     }
 
     // output results
@@ -317,59 +362,72 @@ bool Premo::validateSettings(void) {
     stringstream missing("");
     bool hasMissing = false;
 
-    if ( !m_settings.HasAnnPeFilename || m_settings.AnnPeFilename.empty() ) {
-        missing << endl << "\t-annpe (paired-end neural network filename)";
-        hasMissing = true;
-    }
-
-    if ( !m_settings.HasAnnSeFilename || m_settings.AnnSeFilename.empty() ) {
-        missing << endl << "\t-annse (single-end neural network filename)";
-        hasMissing = true;
-    }
-
+    // -fq1
     if ( !m_settings.HasFastqFilename1 || m_settings.FastqFilename1.empty() ) {
         missing << endl << "\t-fq1 (FASTQ filename)";
         hasMissing = true;
     }
 
-    if ( !m_settings.HasFastqFilename2 || m_settings.FastqFilename2.empty() ) {
-        missing << endl << "\t-fq2 (FASTQ filename)";
-        hasMissing = true;
-    }
-
-    if ( !m_settings.HasMosaikPath || m_settings.MosaikPath.empty() ) {
-        missing << endl << "\t-mosaik (path/to/Mosaik/bin)";
-        hasMissing = true;
-    } else {
-
-        // append dir separator if missing from path
-        if ( !endsWith(m_settings.MosaikPath, "/") )
-            m_settings.MosaikPath.append("/");
-    }
-
+    // -out
     if ( !m_settings.HasOutputFilename || m_settings.OutputFilename.empty() ) {
         missing << endl << "\t-out (output filename)";
         hasMissing = true;
     }
 
-    if ( !m_settings.HasReferenceFilename || m_settings.ReferenceFilename.empty() ) {
-        missing << endl << "\t-ref (Mosaik reference archive)";
-        hasMissing = true;
-    }
-
-    if ( !m_settings.HasScratchPath || m_settings.ScratchPath.empty() ) {
-        missing << endl << "\t-tmp (scratch directory for generated files)";
-        hasMissing = true;
-    } else {
-
-        // append dir separator if missing from path
-        if ( !endsWith(m_settings.ScratchPath, "/") )
-            m_settings.ScratchPath.append("/");
-    }
-
+    // -st
     if ( !m_settings.HasSeqTech || m_settings.SeqTech.empty() ) {
         missing << endl << "\t-st (sequencing technology)";
         hasMissing = true;
+    }
+
+    // check required input for paired-end mode
+    if ( !m_settings.IsSingleEndMode ) {
+
+        // -annpe
+        if ( !m_settings.HasAnnPeFilename || m_settings.AnnPeFilename.empty() ) {
+            missing << endl << "\t-annpe (paired-end neural network filename)";
+            hasMissing = true;
+        }
+
+        // -annse
+        if ( !m_settings.HasAnnSeFilename || m_settings.AnnSeFilename.empty() ) {
+            missing << endl << "\t-annse (single-end neural network filename)";
+            hasMissing = true;
+        }
+
+        // -fq2
+        if ( !m_settings.HasFastqFilename2 || m_settings.FastqFilename2.empty() ) {
+            missing << endl << "\t-fq2 (FASTQ filename)";
+            hasMissing = true;
+        }
+
+        // -mosaik
+        if ( !m_settings.HasMosaikPath || m_settings.MosaikPath.empty() ) {
+            missing << endl << "\t-mosaik (path/to/Mosaik/bin)";
+            hasMissing = true;
+        } else {
+
+            // append dir separator if missing from path
+            if ( !endsWith(m_settings.MosaikPath, "/") )
+                m_settings.MosaikPath.append("/");
+        }
+
+        // -ref
+        if ( !m_settings.HasReferenceFilename || m_settings.ReferenceFilename.empty() ) {
+            missing << endl << "\t-ref (Mosaik reference archive)";
+            hasMissing = true;
+        }
+
+        // -tmp
+        if ( !m_settings.HasScratchPath || m_settings.ScratchPath.empty() ) {
+            missing << endl << "\t-tmp (scratch directory for generated files)";
+            hasMissing = true;
+        } else {
+
+            // append dir separator if missing from path
+            if ( !endsWith(m_settings.ScratchPath, "/") )
+                m_settings.ScratchPath.append("/");
+        }
     }
 
     // -----------------------------------------
@@ -420,18 +478,25 @@ bool Premo::validateSettings(void) {
         hasInvalid = true;
     }
 
-    if ( m_settings.HasScratchPath && !m_settings.ScratchPath.empty() ) {
+    // check valid input for paired-end mode
+    if ( !m_settings.IsSingleEndMode ) {
 
-        // see if directory already exists
-        if ( dirExists(m_settings.ScratchPath.c_str()) )
-            m_createdScratchDirectory = false;
+        // -tmp
+        if ( m_settings.HasScratchPath && !m_settings.ScratchPath.empty() ) {
 
-        // if not try to create it
-        else {
-            m_createdScratchDirectory = createDirectory(m_settings.ScratchPath.c_str());
-            if ( !m_createdScratchDirectory ) {
-                invalid << endl << "\tcould not create the directory specified by -tmp. Be sure you have mkdir permissions";
-                hasInvalid = true;
+            // see if directory already exists
+            if ( dirExists(m_settings.ScratchPath.c_str()) )
+                m_createdScratchDirectory = false;
+
+            // if not try to create it
+            else {
+                m_createdScratchDirectory = createDirectory(m_settings.ScratchPath.c_str());
+                if ( !m_createdScratchDirectory ) {
+                    invalid << endl
+                            << "\tcould not create the directory specified by -tmp. "
+                            << "Be sure you have mkdir permissions";
+                    hasInvalid = true;
+                }
             }
         }
     }
@@ -472,7 +537,7 @@ bool Premo::writeOutput(void) {
     // store top-level results
     // ------------------------------
 
-    root["overall result"] = resultToJson(m_currentResult);
+    root["overall result"] = resultToJson(m_currentResult, m_settings.IsSingleEndMode;
 
     // -------------------------
     // store per-batch results
@@ -482,7 +547,7 @@ bool Premo::writeOutput(void) {
     vector<Result>::const_iterator batchIter = m_batchResults.begin();
     vector<Result>::const_iterator batchEnd  = m_batchResults.end();
     for ( ; batchIter != batchEnd; ++batchIter )
-        batches.append( resultToJson(*batchIter) );
+        batches.append( resultToJson(*batchIter, m_settings.IsSingleEndMode) );
 
     root["batch results"] = batches;
 
@@ -508,12 +573,9 @@ bool Premo::writeOutput(void) {
     // generate Mosaik parameter set
     // -------------------------------
 
-    vector<int> fragmentLengths = m_currentResult.FragmentLengths;
-    vector<int> readLengths     = m_currentResult.ReadLengths;
-    sort(fragmentLengths.begin(), fragmentLengths.end());
-    sort(readLengths.begin(),     readLengths.end());
-
-    const double fragLengthMedian = calculateMedian(fragmentLengths);
+    // calculate read length median & related stats
+    vector<int> readLengths  = m_currentResult.ReadLengths;
+    sort(readLengths.begin(), readLengths.end());
     const double readLengthMedian = calculateMedian(readLengths);
 
     // calculate bandwidth parameter, rounding down to nearest odd integer
@@ -521,17 +583,27 @@ bool Premo::writeOutput(void) {
     if ( (bandwidth & 1) == 0  )
         bandwidth -= 1;
 
+    // if PE mode, calculate fragment length median
+    double fragLengthMedian(0.0);
+    if ( !m_settings.IsSingleEndMode ) {
+        vector<int> fragmentLengths = m_currentResult.FragmentLengths;
+        sort(fragmentLengths.begin(), fragmentLengths.end());
+        fragLengthMedian = calculateMedian(fragmentLengths);
+    }
+
     Json::Value mosaikAlignerParameters(Json::objectValue);
     mosaikAlignerParameters["-act"] = (m_settings.ActSlope * readLengthMedian) + m_settings.ActIntercept;
     mosaikAlignerParameters["-bw"]  = bandwidth;
     mosaikAlignerParameters["-hs"]  = m_settings.HashSize;
-    mosaikAlignerParameters["-ls"]  = fragLengthMedian;
     mosaikAlignerParameters["-mhp"] = m_settings.Mhp;
     mosaikAlignerParameters["-mmp"] = m_settings.Mmp;
+    if ( !m_settings.IsSingleEndMode )
+        mosaikAlignerParameters["-ls"] = fragLengthMedian;
 
     Json::Value mosaikBuildParameters(Json::objectValue);
-    mosaikBuildParameters["-mfl"] = static_cast<int>(fragLengthMedian);
-    mosaikBuildParameters["-st"]  = m_settings.SeqTech;
+    mosaikBuildParameters["-st"] = m_settings.SeqTech;
+    if ( !m_settings.IsSingleEndMode )
+        mosaikBuildParameters["-mfl"] = static_cast<int>(fragLengthMedian);
 
     Json::Value parameters(Json::objectValue);
     parameters["MosaikAligner"] = mosaikAlignerParameters;

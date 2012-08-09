@@ -2,7 +2,7 @@
 // main.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 27 June 2012 (DB)
+// Last modified: 9 August 2012 (DB)
 // ---------------------------------------------------------------------------
 // Main entry point for the Premo app.
 // ***************************************************************************
@@ -36,22 +36,18 @@ int main(int argc, char* argv[]) {
     // set program details
     const string name("premo");
     const string description("\"pre-Mosaik\" application that generates MosaikAligner parameters "
-                             "for paired-end sequencing data. Premo uses a bootstrapping heuristic "
-                             "to estimate the overall read length & fragment length, running "
-                             "Mosaik on samples from the input until it sees convergence on both of "
-                             "these values. The resulting parameters, reported in JSON format, "
-                             "should allow Mosaik to perform well on the full dataset.");
-    const string usage("-annpe <file> "
-                       "-annse <file> "
-                       "-fq1 <file> "
-                       "-fq2 <file> "
-                       "-jmp <file prefix> "
-                       "-mosaik <dir> "
-                       "-out <file> "
-                       "-ref <file> "
-                       "-st <technology> "
-                       "[-tmp <dir>] "
-                       "[options]" );
+                             "for either single-end or paired-end sequencing data. For paired-end "
+                             "data, Premo uses a bootstrapping heuristic to estimate the overall "
+                             "read length & fragment length, running Mosaik on samples from the "
+                             "input until it sees convergence on both of these values. For single-"
+                             "end data, the heuristic Mosaik batch runs are not needed (there is no "
+                             "fragment length to calculate), and only the read length is determined. "
+                             "The resulting Mosaik parameters, reported in JSON format, should allow "
+                             "Mosaik to perform well on the full input dataset.\n"
+                             "Note - Mosaik does not support this output file directly, but the "
+                             "file can be parsed and used to generate a reasonable Mosaik command "
+                             "line.");
+    const string usage("-fq1 <file> -out <file> -st <technology> [options]");
     Options::SetProgramInfo(name, description, usage);
 
     // hook up command-line options to our settings structure
@@ -59,16 +55,17 @@ int main(int argc, char* argv[]) {
 
     OptionGroup* IO_Opts = Options::CreateOptionGroup("Input & Output");
 
-    const string annpe("neural network filename (paired-end)");
-    const string annse("neural network filename (single-end)");
-    const string fq1("input FASTQ file (mate 1)");
-    const string fq2("input FASTQ file (mate 2)");
-    const string jump("stub for jump database files");
+    const string annpe("neural network filename (paired-end) - required for paired-end data");
+    const string annse("neural network filename (single-end) - required for paired-end data");
+    const string fq1("input FASTQ file (mate 1 or single-end)");
+    const string fq2("input FASTQ file (mate 2) - required for paired-end data");
+    const string jump("stub for jump database files  - required for paired-end data");
     const string keep("keep generated files (auto-deleted by default)");
-    const string mosaik("/path/to/Mosaik/bin");
+    const string mosaik("/path/to/Mosaik/bin  - required for paired-end data");
     const string out("output file (JSON). Contains generated Mosaik parameters & raw batch results");
-    const string ref("MosaikBuild-generated reference archive");
-    const string tmp("scratch directory for any generated files");
+    const string ref("MosaikBuild-generated reference archive  - required for paired-end data");
+    const string singleEnd("run Premo in single-end data mode. By default, Premo assumes paired-end data.");
+    const string tmp("scratch directory for any generated files - only used for paired-end data");
     const string verbose("verbose output (to stderr)");
     const string version("show version information");
 
@@ -84,9 +81,10 @@ int main(int argc, char* argv[]) {
     Options::AddValueOption("-out",    FN,  out,    "", settings.HasOutputFilename,    settings.OutputFilename,    IO_Opts);
     Options::AddValueOption("-ref",    FN,  ref,    "", settings.HasReferenceFilename, settings.ReferenceFilename, IO_Opts);
     Options::AddValueOption("-tmp",    DIR, tmp,    "", settings.HasScratchPath,       settings.ScratchPath,       IO_Opts, Defaults::ScratchPath);
-    Options::AddOption("-keep",    keep,    settings.IsKeepGeneratedFiles, IO_Opts);
-    Options::AddOption("-v",       verbose, settings.IsVerbose,            IO_Opts);
-    Options::AddOption("-version", version, settings.IsVersionRequested,   IO_Opts);
+    Options::AddOption("-keep",    keep,      settings.IsKeepGeneratedFiles, IO_Opts);
+    Options::AddOption("-se",      singleEnd, settings.IsSingleEndMode,      IO_Opts );
+    Options::AddOption("-v",       verbose,   settings.IsVerbose,            IO_Opts);
+    Options::AddOption("-version", version,   settings.IsVersionRequested,   IO_Opts);
 
     OptionGroup* PremoOpts = Options::CreateOptionGroup("Premo Bootstrapping Options");
 
