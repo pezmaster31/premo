@@ -2,18 +2,74 @@
 // fastqreader.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 27 June 2012 (DB)
+// Last modified: 9 May 2013 (DB)
 // ---------------------------------------------------------------------------
 // FASTQ file reader
 // ***************************************************************************
 
 #include "fastqreader.h"
 #include "fastq.h"
+#include <zlib.h>
 #include <bamtools/api/bamtools_global.h>
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <sstream>
 using namespace std;
+
+// -------------------------
+// helper stream classes
+// -------------------------
+
+class IStream {
+    protected:
+        IStream(void) { }
+    public:
+        virtual ~IStream(void) { }
+
+    public:
+        virtual void  close(void) =0;
+        virtual char  getc(void) =0;
+        virtual char* gets(char* dest, const size_t length) =0;
+        virtual bool  isEOF(void) const =0;
+        virtual bool  isOpen(void) const =0;
+        virtual void  open(const char* filename) =0;
+        virtual int   ungetc(const char c) =0;
+};
+
+class FileStream : public IStream {
+
+    public:
+        FileStream(void): IStream(), file(0) { }
+        ~FileStream(void) { }
+    public:
+        void close(void)                            { fclose(file); }
+        char getc(void)                             { return fgetc(file); }
+        char* gets(char* dest, const size_t length) { return fgets(dest, length, file); }
+        bool isEOF(void) const                      { return ( feof(file) != 0 ); }
+        bool isOpen(void) const                     { return file != 0; }
+        void open(const char* filename)             { file = fopen(filename, "rb"); }
+        int ungetc(const char c)                    { return ::ungetc(c, file); }
+    private:
+        FILE* file;
+};
+
+class GzFileStream : public IStream {
+
+    public:
+        GzFileStream(void) : IStream(), file(0) { }
+        ~GzFileStream(void) { }
+    public:
+        void close(void)                            { gzclose(file); }
+        char getc(void)                             { return gzgetc(file); }
+        char* gets(char* dest, const size_t length) { return gzgets(file, dest, length); }
+        bool isEOF(void) const                      { return ( gzeof(file) != 0 ); }
+        bool isOpen(void) const                     { return file != 0; }
+        void open(const char* filename)             { file = gzopen(filename, "rb"); }
+        int ungetc(const char c)                    { return gzungetc(c, file); }
+    private:
+        gzFile file;
+};
 
 // ------------------------
 // static utility methods
@@ -39,19 +95,8 @@ void chomp(char* s) {
 // FastqReader implementation
 // ----------------------------
 
-// these macros allow for compression-independent file I/O below
-#define STREAM_CLEAR          ( m_isCompressed ? m_zStream = 0                               : m_stream = 0 )
-#define STREAM_CLOSE          ( m_isCompressed ? gzclose(m_zStream)                          : fclose(m_stream) )
-#define STREAM_EOF            ( m_isCompressed ? gzeof(m_zStream)                            : feof(m_stream) )
-#define STREAM_GETC           ( m_isCompressed ? gzgetc(m_zStream)                           : fgetc(m_stream) )
-#define STREAM_GETS           ( m_isCompressed ? gzgets(m_zStream, m_buffer, m_bufferLength) : fgets(m_buffer, m_bufferLength, m_stream) )
-#define STREAM_OPEN(filename) ( m_isCompressed ? m_zStream = gzopen(filename, "rb")          : m_stream = fopen(filename, "rb") )
-#define STREAM_UNGETC(ch)     ( m_isCompressed ? gzungetc(ch, m_zStream)                     : ungetc(ch, m_stream) )
-#define STREAM                ( m_isCompressed ? m_zStream                                   : m_stream )
-
 FastqReader::FastqReader(void)
     : m_stream(0)
-    , m_zStream(0)
     , m_isCompressed(false)
     , m_buffer(0)
     , m_bufferLength(0)
@@ -65,8 +110,9 @@ void FastqReader::close(void) {
 
     // close file stream
     if ( isOpen() ) {
-        STREAM_CLOSE;
-        STREAM_CLEAR;
+        m_stream->close();
+        delete m_stream;
+        m_stream = 0;
     }
 
     // clean up allocated memory
@@ -91,19 +137,20 @@ string FastqReader::filename(void) const {
 
 bool FastqReader::isEOF(void) const {
     if ( isOpen() )
-        return static_cast<bool>( STREAM_EOF );
+        return m_stream->isEOF();
     else
         return false;
 }
 
 bool FastqReader::isOpen(void) const {
-    return ( STREAM != 0 );
+    return m_stream != 0 && m_stream->isOpen();
 }
 
 bool FastqReader::open(const string& filename) {
 
     // ensure clean slate
     close();
+    assert(m_stream == 0);
 
     // -----------------------------
     // check the compression state
@@ -129,12 +176,16 @@ bool FastqReader::open(const string& filename) {
     fclose(checkStream);
 
     m_isCompressed = ( magicNumber == GZIP_MAGIC_NUMBER );
+    if ( m_isCompressed )
+        m_stream = new GzFileStream;
+    else
+        m_stream = new FileStream;
 
     // ----------------------
     // attempt to open file
     // ----------------------
 
-    STREAM_OPEN(filename.c_str());
+    m_stream->open(filename.c_str());
     if ( !isOpen() ) {
 
         // if failed, set error & return failure
@@ -166,9 +217,8 @@ bool FastqReader::readNext(Fastq *entry) {
 
     // read header
     char* result;
-
-    result = STREAM_GETS;
-    if ( STREAM_EOF ) {
+    result = m_stream->gets(m_buffer, m_bufferLength);
+    if ( m_stream->isEOF() ) {
         m_errorString = "could not read full FASTQ entry from file: ";
         m_errorString.append(m_filename);
         return false;
@@ -185,11 +235,11 @@ bool FastqReader::readNext(Fastq *entry) {
     // read bases
     ostringstream sb("");
     while ( true ) {
-        const char c = STREAM_GETC;
-        STREAM_UNGETC(c);
-        if ( c == '+' || STREAM_EOF )
+        const char c = m_stream->getc();
+        m_stream->ungetc(c);
+        if ( c == '+' || m_stream->isEOF() )
             break;
-        result = STREAM_GETS;
+        result = m_stream->gets(m_buffer, m_bufferLength);
         chomp(m_buffer);
         sb << m_buffer;
     }
@@ -197,15 +247,15 @@ bool FastqReader::readNext(Fastq *entry) {
     const size_t numBases = entry->Bases.length();
 
     // read qualities
-    result = STREAM_GETS;
+    result = m_stream->gets(m_buffer, m_bufferLength);
     sb.str("");
     size_t numQualities = 0;
     while ( true ) {
-        const char c = STREAM_GETC;
-        STREAM_UNGETC(c);
-        if ( STREAM_EOF )
+        const char c = m_stream->getc();
+        m_stream->ungetc(c);
+        if ( m_stream->isEOF() )
             break;
-        result = STREAM_GETS;
+        result = m_stream->gets(m_buffer, m_bufferLength);
         chomp(m_buffer);
         numQualities += strlen(m_buffer);
         sb << m_buffer;
