@@ -2,7 +2,7 @@
 // stats.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 24 June 2012 (DB)
+// Last modified: 12 Sept 2013 (DB)
 // ---------------------------------------------------------------------------
 // Data structures & methods for statistics
 // ***************************************************************************
@@ -38,9 +38,12 @@ struct Quartiles {
     ~Quartiles(void) { }
 };
 
-// N.B. - expects non-empty, sorted container
+// N.B. - expects sorted container
 template<typename T>
 double calculateMedian(const std::vector<T>& container) {
+
+    if ( container.empty() )
+        return 0.0;
 
     const size_t numElements = container.size();
     const size_t pivot       = numElements / 2;
@@ -114,6 +117,10 @@ struct OutOfRange {
 
 template<typename T>
 void removeOutliers(std::vector<T>& container) {
+
+    // skip if container is too small to determine outliers
+    if ( container.size() <= 3 )
+        return;
 
     // sort container
     std::sort(container.begin(), container.end());
