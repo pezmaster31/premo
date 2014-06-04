@@ -2,7 +2,7 @@
 // main.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 9 August 2012 (DB)
+// Last modified: 3 June 2014 (DB)
 // ---------------------------------------------------------------------------
 // Main entry point for the Premo app.
 // ***************************************************************************
@@ -21,7 +21,7 @@ void printVersion(void) {
     cerr << endl
          << "------------------------------" << endl
          << "premo v" << PREMO_VERSION_MAJOR << "." << PREMO_VERSION_MINOR << "." << PREMO_VERSION_BUILD << endl
-         << "(c) 2012 Derek Barnett" << endl
+         << "(c) 2012-2014 Derek Barnett" << endl
          << "Boston College, Biology Dept." << endl
          << "------------------------------" << endl
          << endl;
@@ -46,14 +46,14 @@ int main(int argc, char* argv[]) {
                              "Mosaik to perform well on the full input dataset.\n"
                              "Note - Mosaik does not support this output file directly, but the "
                              "file can be parsed and used to generate a reasonable Mosaik command "
-                             "line.");
+                             "line");
     const string usage("-fq1 <file> -out <file> -st <technology> [options]");
     Options::SetProgramInfo(name, description, usage);
 
     // hook up command-line options to our settings structure
     PremoSettings settings;
 
-    OptionGroup* IO_Opts = Options::CreateOptionGroup("Input & Output");
+    OptionGroup* IO_Opts = Options::CreateOptionGroup("General & I/O Options");
 
     const string annpe("neural network filename (paired-end) - required for paired-end data");
     const string annse("neural network filename (single-end) - required for paired-end data");
@@ -96,22 +96,24 @@ int main(int argc, char* argv[]) {
     Options::AddValueOption("-delta-rl", "double", drl, "", settings.HasDeltaReadLength,     settings.DeltaReadLength,     PremoOpts, Defaults::DeltaReadLength);
     Options::AddValueOption("-n",        "int",    n,   "", settings.HasBatchSize,           settings.BatchSize,           PremoOpts, Defaults::BatchSize);
 
-    OptionGroup* MosaikOpts = Options::CreateOptionGroup("Mosaik Parameter-Generation Options");
+    OptionGroup* MosaikOpts = Options::CreateOptionGroup("Mosaik Options");
 
     const string act("alignment candidate threshold. Generated MosaikAligner -act parameter will be ((ActSlope * ReadLength) + ActIntercept)");
     const string bwm("banded Smith-Waterman multiplier. Generated MosaikAligner -bw parameter will be (BwMultiplier * Mmp * ReadLength)");
     const string hs("Mosaik hash size. Used in premo batch runs, and included in generated parameter set");
     const string mhp("maximum hash positions. Used in premo batch runs, and included in generated parameter set");
     const string mmp("mismatch percent. Used in premo batch runs, and included in generated parameter set");
+    const string p("use specified number of processors for MosaikAligner runs");
     const string st("sequencing technology: '454', 'helicos', 'illumina', 'illumina_long', 'sanger' or 'solid'. Required for premo batch runs, and included in generated parameter set");
 
-    Options::AddValueOption("-act-intercept", "int",    act, "", settings.HasActIntercept, settings.ActIntercept, MosaikOpts, Defaults::ActIntercept);
-    Options::AddValueOption("-act-slope",     "double", act, "", settings.HasActSlope,     settings.ActSlope,     MosaikOpts, Defaults::ActSlope);
-    Options::AddValueOption("-bwm",           "int",    bwm, "", settings.HasBwMultiplier, settings.BwMultiplier, MosaikOpts, Defaults::BwMultiplier);
-    Options::AddValueOption("-hs",            "int",    hs,  "", settings.HasHashSize,     settings.HashSize,     MosaikOpts, Defaults::HashSize);
-    Options::AddValueOption("-mhp",           "int",    mhp, "", settings.HasMhp,          settings.Mhp,          MosaikOpts, Defaults::Mhp);
-    Options::AddValueOption("-mmp",           "double", mmp, "", settings.HasMmp,          settings.Mmp,          MosaikOpts, Defaults::Mmp);
-    Options::AddValueOption("-st",            "string", st,  "", settings.HasSeqTech,      settings.SeqTech,      MosaikOpts  /* REQUIRED INPUT */);
+    Options::AddValueOption("-act-intercept", "int",    act, "", settings.HasActIntercept,  settings.ActIntercept,  MosaikOpts, Defaults::ActIntercept);
+    Options::AddValueOption("-act-slope",     "double", act, "", settings.HasActSlope,      settings.ActSlope,      MosaikOpts, Defaults::ActSlope);
+    Options::AddValueOption("-bwm",           "int",    bwm, "", settings.HasBwMultiplier,  settings.BwMultiplier,  MosaikOpts, Defaults::BwMultiplier);
+    Options::AddValueOption("-hs",            "int",    hs,  "", settings.HasHashSize,      settings.HashSize,      MosaikOpts, Defaults::HashSize);
+    Options::AddValueOption("-mhp",           "int",    mhp, "", settings.HasMhp,           settings.Mhp,           MosaikOpts, Defaults::Mhp);
+    Options::AddValueOption("-mmp",           "double", mmp, "", settings.HasMmp,           settings.Mmp,           MosaikOpts, Defaults::Mmp);
+    Options::AddValueOption("-p",             "int",    p,   "", settings.HasNumProcessors, settings.NumProcessors, MosaikOpts, Defaults::NumProcessors);
+    Options::AddValueOption("-st",            "string", st,  "", settings.HasSeqTech,       settings.SeqTech,       MosaikOpts  /* REQUIRED INPUT */);
 
     // -------------------------------------------------------
     // parse command line
@@ -131,13 +133,13 @@ int main(int argc, char* argv[]) {
     // -------------------------------------------------------
 
     // initialize our Premo runner with cmdline settings
-    Premo p(settings);
+    Premo premo(settings);
 
     // run PremoApp... if failed:
-    if ( !p.run() ) {
+    if ( !premo.run() ) {
 
         // print error & return failure
-        cerr << "premo ERROR: " << p.errorString() << endl;
+        cerr << "premo ERROR: " << premo.errorString() << endl;
         return 1;
     }
 

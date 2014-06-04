@@ -2,7 +2,7 @@
 // pebatch.cpp (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 8 August 2012 (DB)
+// Last modified: 3 June 2014 (DB)
 // ---------------------------------------------------------------------------
 // Paired-end batch
 // ***************************************************************************
@@ -310,6 +310,7 @@ Batch::RunStatus PairedEndBatch::runMosaikAligner(void) {
                   << " -hs "    << m_settings->HashSize
                   << " -mhp "   << m_settings->Mhp
                   << " -mmp "   << m_settings->Mmp
+                  << " -p "     << m_settings->NumProcessors
                   << " -kd -pd ";
 
     if ( m_settings->HasJumpDbStub && !m_settings->JumpDbStub.empty() )

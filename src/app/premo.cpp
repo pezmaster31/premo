@@ -445,7 +445,6 @@ bool Premo::validateSettings(void) {
     stringstream invalid("");
     bool hasInvalid = false;
 
-
     if ( m_settings.HasActSlope && m_settings.ActSlope <= 0.0 ) {
         invalid << endl << "\t-act-slope must be a positive, non-zero value";
         hasInvalid = true;
@@ -483,6 +482,11 @@ bool Premo::validateSettings(void) {
 
     if ( m_settings.HasMmp && (m_settings.Mmp < 0.0 || m_settings.Mmp > 1.0) ) {
         invalid << endl << "\t-mmp must be in the range [0.0 - 1.0]";
+        hasInvalid = true;
+    }
+
+    if ( m_settings.HasNumProcessors && m_settings.NumProcessors == 0 ) {
+        invalid << endl << "\t-p cannot be zero";
         hasInvalid = true;
     }
 

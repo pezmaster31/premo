@@ -2,7 +2,7 @@
 // premo_settings.h (c) 2012 Derek Barnett
 // Marth Lab, Department of Biology, Boston College
 // ---------------------------------------------------------------------------
-// Last modified: 8 August 2012 (DB)
+// Last modified: 3 June 2014 (DB)
 // ---------------------------------------------------------------------------
 // Premo app settings
 // ***************************************************************************
@@ -41,6 +41,9 @@ const unsigned int Mhp = 200;
 // maximum mismatch percentage (see Mosaik docs for details)
 const double Mmp = 0.15;
 
+// number of processors for MosaikAligner to use
+const unsigned int NumProcessors = 1;
+
 // directory for generated files (they're cleaned up by default)
 const std::string ScratchPath(".");
 
@@ -75,6 +78,7 @@ struct PremoSettings {
     bool HasHashSize;
     bool HasMhp;
     bool HasMmp;
+    bool HasNumProcessors;
     bool HasSeqTech;
 
     // I/O parameters
@@ -100,6 +104,7 @@ struct PremoSettings {
     unsigned int HashSize;
     unsigned int Mhp;
     double       Mmp;
+    unsigned int NumProcessors;
     std::string  SeqTech;
 
     // ctors
@@ -126,6 +131,7 @@ struct PremoSettings {
         , HasHashSize(false)
         , HasMhp(false)
         , HasMmp(false)
+        , HasNumProcessors(false)
         , HasSeqTech(false)
         , AnnPeFilename("")
         , AnnSeFilename("")
@@ -145,6 +151,7 @@ struct PremoSettings {
         , HashSize(Defaults::HashSize)
         , Mhp(Defaults::Mhp)
         , Mmp(Defaults::Mmp)
+        , NumProcessors(Defaults::NumProcessors)
         , SeqTech("")
     { }
 
@@ -171,6 +178,7 @@ struct PremoSettings {
         , HasHashSize(other.HasHashSize)
         , HasMhp(other.HasMhp)
         , HasMmp(other.HasMmp)
+        , HasNumProcessors(other.HasNumProcessors)
         , HasSeqTech(other.HasSeqTech)
         , AnnPeFilename(other.AnnPeFilename)
         , AnnSeFilename(other.AnnSeFilename)
@@ -190,6 +198,7 @@ struct PremoSettings {
         , HashSize(other.HashSize)
         , Mhp(other.Mhp)
         , Mmp(other.Mmp)
+        , NumProcessors(other.NumProcessors)
         , SeqTech(other.SeqTech)
     { }
 };
