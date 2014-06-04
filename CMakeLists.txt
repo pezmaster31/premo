@@ -32,7 +32,7 @@ ensure_out_of_source_build( "
 # set Premo version information
 set( Premo_VERSION_MAJOR 0 )
 set( Premo_VERSION_MINOR 2 )
-set( Premo_VERSION_BUILD 0 )
+set( Premo_VERSION_BUILD 1 )
 
 # set our library and executable destination dirs
 set( EXECUTABLE_OUTPUT_PATH "${CMAKE_SOURCE_DIR}/bin" )
